@@ -1,0 +1,449 @@
+/* Define CSS variables for colors and shadows */
+:root {
+  --background: #f8fafc; /* Lighter gray background */
+  --card-bg: #ffffff; /* Pure white card background */
+  --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(0, 0, 0, 0.05); /* Softer, deeper shadow */
+  --border-color: #e0e0e0; /* Lighter, subtle border */
+
+  --text-primary: #212121; /* Darker, more professional primary text */
+  --text-secondary: #616161; /* Medium gray for secondary text */
+  --text-tertiary: #9e9e9e; /* Light gray for helper text */
+
+  --primary: #673ab7; /* Deeper purple */
+  --primary-light: #9575cd; /* Lighter primary for gradients/hover */
+  --primary-dark: #5e35b1; /* Even deeper primary for active/focus */
+  --secondary-gradient-start: #8e24aa; /* For gradients, a complementary purple */
+  --secondary-gradient-end: #ab47bc; /* Lighter version */
+
+  --success: #43a047; /* Professional green */
+  --success-light: #e8f5e9; /* Light green background */
+  --success-dark: #2e7d32; /* Darker green */
+
+  --danger: #e53935; /* Professional red */
+  --danger-light: #ffebee; /* Light red background */
+  --danger-dark: #c62828; /* Darker red */
+
+  --warning-light: #fff3e0; /* Light orange for warnings */
+  --warning-dark: #ef6c00; /* Darker orange */
+  --warning-border: #ffcc80; /* Medium orange border */
+
+  --highlight-blue: #2196f3; /* For specific highlights like wallet address */
+}
+
+/* Base styles and container */
+.deposit-page {
+  min-height: 100vh;
+  background-color: var(--background);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+  font-family: 'Inter', sans-serif; /* Consistent font */
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+.deposit-page.loading-screen {
+  background-color: var(--background);
+  color: var(--text-secondary);
+  font-size: 1.125rem;
+  font-weight: 500;
+}
+
+.deposit-container {
+  max-width: 500px; /* Slightly wider for better content flow */
+  width: 100%;
+  background-color: var(--card-bg);
+  border-radius: 12px; /* Slightly more pronounced rounded corners */
+  box-shadow: var(--card-shadow);
+  padding: 2.5rem; /* More internal spacing */
+  border: 1px solid var(--border-color);
+  animation: fadeIn 0.5s ease-out; /* Fade in animation */
+}
+
+.deposit-container h2 {
+  font-size: 2.25rem; /* Larger, more impactful heading */
+  font-weight: 700;
+  margin-bottom: 0.75rem; /* Closer to the description */
+  color: var(--primary); /* Use primary color for heading for impact */
+  text-align: center;
+  position: relative;
+}
+
+.deposit-container h2::after {
+  content: '';
+  position: absolute;
+  bottom: -0.5rem; /* Adjust position */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px; /* Longer underline */
+  height: 4px; /* Thicker underline */
+  background: linear-gradient(to right, var(--primary), var(--secondary-gradient-start)); /* More defined gradient */
+  border-radius: 2px;
+}
+
+.deposit-description {
+  margin-bottom: 2.5rem; /* More space below description */
+  color: var(--text-secondary);
+  font-size: 1rem;
+  text-align: center;
+  max-width: 80%; /* Constrain width for readability */
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Message styles */
+.error-message, .success-message {
+  padding: 1rem 1.25rem; /* More padding */
+  border-radius: 8px; /* Softer corners */
+  margin-bottom: 1.5rem;
+  font-size: 0.9375rem; /* Slightly larger text */
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05); /* Subtle shadow for messages */
+}
+
+.error-message {
+  background-color: var(--danger-light);
+  color: var(--danger-dark);
+  border: 1px solid var(--danger);
+}
+
+.success-message {
+  background-color: var(--success-light);
+  color: var(--success-dark);
+  border: 1px solid var(--success);
+}
+
+/* Form layout */
+.deposit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem; /* Increased gap */
+}
+
+.form-group label {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+  margin-bottom: 0.5rem;
+}
+
+.form-select, .form-input {
+  height: 52px; /* Taller inputs for better touch targets */
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background-color: var(--card-bg);
+  color: var(--text-primary);
+  padding: 0 1.25rem; /* More padding */
+  font-size: 1rem;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease;
+  appearance: none; /* Remove default select arrow */
+}
+
+.form-select:focus, .form-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(103, 58, 183, 0.2), 0 0 0 6px rgba(103, 58, 183, 0.1); /* Deeper focus ring */
+  outline: none;
+}
+
+.form-select:disabled, .form-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: #f5f5f5; /* Lighter disabled background */
+}
+
+/* Custom arrow for select */
+.form-group {
+  position: relative;
+}
+.form-group select.form-select {
+  padding-right: 2.5rem; /* Space for custom arrow */
+  background-image: url('data:image/svg+xml;utf8,<svg fill="%23616161" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/><path d="M0 0h24v24H0z" fill="none"/></svg>');
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1.5em;
+}
+
+
+.form-helper-text {
+  color: var(--text-tertiary);
+  font-size: 0.8125rem; /* Slightly larger helper text */
+  margin-top: 0.5rem;
+}
+
+.amount-input-container {
+  position: relative;
+}
+
+.currency-symbol {
+  position: absolute;
+  left: 1.25rem; /* Align with input padding */
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-secondary); /* Match secondary text */
+  font-weight: 600;
+  font-size: 1.1rem; /* Slightly larger symbol */
+}
+
+.amount-input {
+  padding-left: 2.5rem; /* Adjust for symbol */
+}
+
+/* Wallet Section */
+.wallet-section {
+  background-color: #f0f4f8; /* Light blueish-gray background for distinction */
+  border-radius: 12px;
+  padding: 2rem;
+  margin-top: 1.5rem;
+  border: 1px dashed rgba(var(--primary), 0.2); /* Dashed border for visual interest */
+}
+
+.wallet-section h3 {
+  font-size: 1.5rem; /* Larger heading */
+  font-weight: 600;
+  color: var(--primary); /* Primary color for wallet heading */
+  margin-bottom: 1.75rem;
+  text-align: center;
+}
+
+.wallet-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem; /* Increased gap */
+  align-items: center;
+}
+
+.qr-container {
+  background: var(--card-bg);
+  padding: 1rem;
+  border-radius: 10px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1); /* More prominent shadow */
+  flex-shrink: 0;
+  max-width: 200px;
+  border: 1px solid var(--border-color);
+}
+
+.qr-container img {
+  display: block; /* Ensures image fills container without extra space */
+  max-width: 100%;
+  height: auto;
+}
+
+.wallet-details {
+  flex: 1;
+  text-align: center;
+}
+
+.wallet-address {
+  display: flex;
+  flex-direction: column; /* Stack on mobile */
+  align-items: center; /* Center items initially */
+  justify-content: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  background-color: #f5f5f5; /* Light gray background */
+  padding: 1rem 1.25rem;
+  border-radius: 8px;
+  border: 1px solid #dcdcdc; /* Subtle border */
+}
+
+.wallet-address strong {
+  color: var(--text-primary);
+  font-size: 0.9rem; /* Slightly smaller for label */
+  margin-bottom: 0.25rem; /* Space below label */
+}
+
+.wallet-address code {
+  font-family: 'Roboto Mono', monospace; /* More modern monospace font */
+  background-color: transparent; /* No background here */
+  padding: 0;
+  border-radius: 0;
+  font-size: 0.95rem; /* Slightly larger code font */
+  color: var(--highlight-blue); /* Highlight wallet address */
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-all;
+  display: block; /* Ensure it takes full width */
+  margin-bottom: 0.5rem;
+  white-space: normal; /* Allow text to wrap */
+}
+
+.copy-btn {
+  background-color: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 6px; /* Softer rounded corners */
+  padding: 0.6rem 1.2rem; /* More generous padding */
+  font-size: 0.875rem; /* Slightly larger text */
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.copy-btn:hover {
+  background-color: var(--primary-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.copy-btn:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.wallet-instructions {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  padding: 1rem; /* More padding */
+  border-left: 4px solid var(--accent); /* More prominent border */
+  background-color: rgba(255, 160, 0, 0.05); /* Light orange tint */
+  border-radius: 4px;
+  margin-top: 1rem;
+  text-align: left; /* Align text left */
+}
+
+.approval-note {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: var(--warning-light);
+  border: 1px solid var(--warning-border);
+  color: var(--warning-dark);
+  border-radius: 8px;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05); /* Subtle shadow */
+}
+
+/* Buttons */
+.deposit-btn, .back-to-dashboard-btn {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center; /* Center content vertically */
+  padding: 1rem 1.5rem; /* More padding */
+  border: none; /* No border for primary button */
+  border-radius: 8px; /* Consistent rounded corners */
+  font-weight: 600;
+  font-size: 1.125rem; /* Larger font size */
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden; /* For pseudo-elements */
+}
+
+.deposit-btn {
+  background-color: var(--primary);
+  color: white;
+  box-shadow: 0 5px 15px rgba(103, 58, 183, 0.25); /* Stronger shadow for primary action */
+  border: 1px solid var(--primary); /* Define a subtle border for consistency */
+}
+
+.deposit-btn:hover:not(:disabled) {
+  background-color: var(--primary-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(103, 58, 183, 0.35);
+}
+
+.deposit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+  background-color: #bdbdbd; /* Gray out disabled button */
+  border-color: #bdbdbd;
+}
+
+.deposit-btn.loading {
+  padding-left: 3rem; /* Space for spinner */
+  color: transparent; /* Hide text during loading */
+  pointer-events: none; /* Prevent clicks during loading */
+}
+
+.deposit-btn.loading::before {
+  content: '';
+  position: absolute;
+  left: 1.25rem; /* Position spinner */
+  top: 50%;
+  transform: translateY(-50%) rotate(0deg); /* Initial rotation */
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 3px solid rgba(255, 255, 255, 0.4);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spinner 0.8s linear infinite;
+}
+
+.back-to-dashboard-btn {
+  background-color: transparent; /* Transparent background */
+  color: var(--primary); /* Primary color text */
+  border: 1px solid var(--primary-light); /* Light primary border */
+  margin-top: 1.5rem; /* More space above */
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.back-to-dashboard-btn:hover {
+  background-color: rgba(103, 58, 183, 0.05); /* Light hover effect */
+  border-color: var(--primary);
+}
+
+.back-to-dashboard-btn:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(103, 58, 183, 0.2);
+}
+
+
+/* Keyframe Animations */
+@keyframes spinner {
+  to {
+    transform: translateY(-50%) rotate(360deg);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+  .deposit-container {
+    padding: 1.5rem;
+    border-radius: 0; /* No border-radius on very small screens for edge-to-edge feel */
+    box-shadow: none; /* No shadow on very small screens */
+    border-left: none;
+    border-right: none;
+  }
+  h2 {
+    font-size: 1.8rem;
+  }
+  .deposit-description {
+    font-size: 0.95rem;
+  }
+  .wallet-section {
+    padding: 1.2rem;
+  }
+  .wallet-section h3 {
+    font-size: 1.3rem;
+  }
+  .wallet-address {
+    flex-direction: column;
+    align-items: center;
+  }
+  .wallet-address code {
+    font-size: 0.85rem;
+  }
+  .copy-btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+  }
+  .deposit-btn, .back-to-dashboard-btn {
+    padding: 0.8rem 1.2rem;
+    font-size: 1rem;
+  }
+}

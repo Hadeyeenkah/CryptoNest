@@ -1,0 +1,372 @@
+/* two-factor-auth.css - Styles for TwoFactorAuthPage */
+
+/* --- Base Styles & Typography --- */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+body {
+    font-family: 'Inter', sans-serif;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    line-height: 1.6;
+    background-color: #f0f2f5; /* Light background, consistent with Dashboard */
+    color: #333; /* Default text color */
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* --- Dark Mode Compatibility (assuming body.dark-mode is toggled) --- */
+body.dark-mode .two-factor-auth-page {
+    background-color: #1a202c; /* Dark background */
+}
+
+body.dark-mode .auth-card {
+    background-color: #2d3748; /* Darker background for the card */
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-mode .auth-title {
+    color: #e2e8f0; /* Light text for titles */
+}
+
+body.dark-mode .auth-description,
+body.dark-mode .input-label,
+body.dark-mode .resend-text {
+    color: #a0aec0; /* Lighter gray for secondary text */
+}
+
+body.dark-mode .auth-input {
+    background-color: #4a5568;
+    border-color: #6b7280;
+    color: #e2e8f0;
+}
+
+body.dark-mode .auth-input::placeholder {
+    color: #a0aec0;
+}
+
+body.dark-mode .auth-button.primary-button {
+    background-color: #6a0dad; /* Deeper purple for dark mode primary */
+}
+
+body.dark-mode .auth-button.primary-button:hover:not(:disabled) {
+    background-color: #5a0a9c;
+}
+
+body.dark-mode .auth-button.secondary-button {
+    background-color: #4a5568;
+    color: #e2e8f0;
+}
+
+body.dark-mode .auth-button.secondary-button:hover:not(:disabled) {
+    background-color: #6b7280;
+}
+
+body.dark-mode .auth-message.success {
+    background-color: #1a472a;
+    color: #69f0ae;
+    border-color: #2d6a4b;
+}
+
+body.dark-mode .auth-message.error {
+    background-color: #5a1a1a;
+    color: #ff5252;
+    border-color: #8a2a2a;
+}
+
+body.dark-mode .modal-container {
+    background-color: #2d3748;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+body.dark-mode .modal-title {
+    color: #e2e8f0;
+}
+
+body.dark-mode .modal-description {
+    color: #a0aec0;
+}
+
+body.dark-mode .modal-close {
+    color: #a0aec0;
+}
+
+body.dark-mode .modal-close:hover {
+    color: #e2e8f0;
+}
+
+/* --- Main Page Container --- */
+.two-factor-auth-page {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #673AB7 0%, #8b5cf6 100%); /* Gradient background */
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+/* --- Authentication Card --- */
+.auth-card {
+    background-color: #ffffff;
+    padding: 40px;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    max-width: 450px;
+    width: 100%;
+    animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.auth-title {
+    font-size: 2.2em;
+    color: #4a0072; /* Darker purple */
+    margin-bottom: 15px;
+    font-weight: 700;
+}
+
+.auth-description {
+    font-size: 1em;
+    color: #666;
+    margin-bottom: 30px;
+    line-height: 1.5;
+}
+
+/* --- Messages (Success/Error) --- */
+.auth-message {
+    padding: 12px 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    font-size: 0.95em;
+    font-weight: 500;
+    text-align: left;
+    border: 1px solid transparent;
+}
+
+.auth-message.success {
+    background-color: #e8f5e9; /* Light green */
+    color: #2e7d32; /* Dark green text */
+    border-color: #a5d6a7;
+}
+
+.auth-message.error {
+    background-color: #ffebee; /* Light red */
+    color: #c62828; /* Dark red text */
+    border-color: #ef9a9a;
+}
+
+/* --- Input Group --- */
+.input-group {
+    margin-bottom: 25px;
+    text-align: left;
+}
+
+.input-label {
+    display: block;
+    font-size: 0.9em;
+    color: #555;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.auth-input {
+    width: 100%;
+    padding: 12px 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 1.1em;
+    color: #333;
+    box-sizing: border-box; /* Include padding in width */
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.auth-input:focus {
+    outline: none;
+    border-color: #8b5cf6; /* Purple focus */
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2);
+}
+
+/* --- Buttons --- */
+.auth-button {
+    width: 100%;
+    padding: 14px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.1em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.auth-button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+    opacity: 0.7;
+    box-shadow: none;
+}
+
+.auth-button.primary-button {
+    background-color: #673AB7; /* Primary purple */
+    color: white;
+    margin-bottom: 15px;
+}
+
+.auth-button.primary-button:hover:not(:disabled) {
+    background-color: #5e35b1;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15);
+}
+
+.auth-button.secondary-button {
+    background-color: #f0f0f0; /* Light gray */
+    color: #673AB7; /* Primary purple text */
+    border: 1px solid #ddd;
+}
+
+.auth-button.secondary-button:hover:not(:disabled) {
+    background-color: #e0e0e0;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* --- Resend Section --- */
+.resend-section {
+    margin-top: 25px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.resend-text {
+    font-size: 0.9em;
+    color: #777;
+    margin-bottom: 0;
+}
+
+/* --- Modal Styles (copied from Dashboard.css for consistency) --- */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-container {
+  background-color: #ffffff;
+  padding: 30px;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  max-width: 450px;
+  width: 90%;
+  text-align: center;
+  animation: modalFadeIn 0.3s ease-out;
+  position: relative;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.modal-title {
+  font-size: 1.8em;
+  color: #673AB7;
+  font-weight: 700;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #999;
+  transition: color 0.2s ease;
+}
+
+.modal-close:hover {
+  color: #333;
+}
+
+.modal-content {
+  text-align: left;
+}
+
+.modal-description {
+  font-size: 1em;
+  color: #555;
+  line-height: 1.5;
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- Loading Screen Styles (copied from App.jsx for consistency) --- */
+.loading-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); /* Gradient background */
+  color: white;
+  font-family: 'Inter', sans-serif;
+  font-size: 1.2rem;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+}
+
+.spinner {
+  border: 8px solid rgba(255, 255, 255, 0.3);
+  border-top: 8px solid #fff;
+  border-radius: 50%;
+  width: 60px;
+  height: 60px;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* --- Responsive Adjustments --- */
+@media (max-width: 600px) {
+    .auth-card {
+        padding: 25px;
+        margin: 15px;
+    }
+    .auth-title {
+        font-size: 1.8em;
+    }
+    .auth-description {
+        font-size: 0.9em;
+        margin-bottom: 20px;
+    }
+    .auth-input {
+        padding: 10px 12px;
+        font-size: 1em;
+    }
+    .auth-button {
+        padding: 12px 15px;
+        font-size: 1em;
+    }
+    .resend-section {
+        flex-direction: column;
+        gap: 8px;
+    }
+}

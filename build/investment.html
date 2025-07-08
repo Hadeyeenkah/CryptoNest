@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Investment Platform</title>
+    <link rel="stylesheet" href="investment.css">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js" defer></script>
+    <script defer src="investment.js"></script> <!-- External script for better maintainability -->
+</head>
+<body>
+    <div class="container">
+        <h1>Choose Your Investment Plan</h1>
+
+        <div class="plans">
+            <div class="plan" onclick="selectPlan('Basic', 10, 15, 500, 999)">
+                <h2>Basic Plan</h2>
+                <p>10% Daily for 15 Days</p>
+                <p>Investment: $500 - $999</p>
+            </div>
+            <div class="plan" onclick="selectPlan('Gold', 25, 20, 1000, 5000)">
+                <h2>Gold Plan</h2>
+                <p>25% Daily for 20 Days</p>
+                <p>Investment: $1000 - $5000</p>
+            </div>
+            <div class="plan" onclick="selectPlan('Platinum', 30, 30, 5000, Infinity)">
+                <h2>Platinum Plan</h2>
+                <p>30% Daily for 30 Days</p>
+                <p>Investment: $5000+</p>
+            </div>
+        </div>
+
+        <div id="investment-details">
+            <h2>Investment Details</h2>
+            <label>Enter Amount ($):</label>
+            <input type="number" id="amount" placeholder="Enter your amount" oninput="calculateReturns()">
+            
+            <p><strong>Plan:</strong> <span id="selected-plan">None</span></p>
+            <p><strong>Daily Return:</strong> <span id="daily-return">$0.00</span></p>
+            <p><strong>Total Return:</strong> <span id="total-return">$0.00</span></p>
+
+            <h3>Choose Payment Method</h3>
+            <div class="payment-method">
+                <input type="radio" id="bitcoin" name="payment" value="Bitcoin" onclick="selectPaymentMethod('Bitcoin')">
+                <label for="bitcoin">Bitcoin</label>
+                
+                <input type="radio" id="ethereum" name="payment" value="Ethereum" onclick="selectPaymentMethod('Ethereum')">
+                <label for="ethereum">Ethereum</label>
+            </div>
+
+            <div id="crypto-prices">
+                <h2>Current Prices</h2>
+                <p>Bitcoin: <span id="btc-price">Loading...</span></p>
+                <p>Ethereum: <span id="eth-price">Loading...</span></p>
+            </div>
+
+            <div id="wallet-info" style="display: none;">
+                <h3>Wallet Address</h3>
+                <p id="wallet-address"></p>
+                <img id="qr-code" src="" alt="QR Code" style="width: 200px;">
+            </div>
+
+            <button onclick="confirmInvestment()">Invest Now</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            let socket;
+            try {
+                socket = io("http://localhost:5000");
+                socket.on("cryptoUpdate", (prices) => {
+                    document.getElementById("btc-price").innerText = `$${prices.BTC}`;
+                    document.getElementById("eth-price").innerText = `$${prices.ETH}`;
+                });
+            } catch (error) {
+                console.warn("WebSocket connection failed. Running without real-time updates.");
+            }
+
+            updateCryptoPrices();
+            setInterval(updateCryptoPrices, 30000);
+        });
+
+        let selectedPlan = null;
+
+        function selectPlan(name, dailyReturn, days, min, max) {
+            selectedPlan = { name, dailyReturn, days, min, max };
+            document.getElementById("selected-plan").innerText = name;
+            calculateReturns();
+        }
+
+        function calculateReturns() {
+            let amount = parseFloat(document.getElementById("amount").value) || 0;
+            let dailyReturnElement = document.getElementById("daily-return");
+            let totalReturnElement = document.getElementById("total-return");
+
+            if (!selectedPlan || amount < selectedPlan.min || amount > selectedPlan.max) {
+                dailyReturnElement.innerText = "$0.00";
+                totalReturnElement.innerText = "$0.00";
+                return;
+            }
+
+            let daily = amount * (selectedPlan.dailyReturn / 100);
+            let total = amount + daily * selectedPlan.days;
+
+            dailyReturnElement.innerText = `$${daily.toFixed(2)}`;
+            totalReturnElement.innerText = `$${total.toFixed(2)}`;
+        }
+
+        function selectPaymentMethod(method) {
+            let walletInfo = document.getElementById("wallet-info");
+            let walletAddressElement = document.getElementById("wallet-address");
+            let qrCodeElement = document.getElementById("qr-code");
+
+            walletInfo.style.display = "block";
+
+            const walletAddresses = {
+                Bitcoin: "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa",
+                Ethereum: "0xde0B295669a9FD93d5F28D9Ec85E40f4cb697BAe",
+            };
+
+            let walletAddress = walletAddresses[method] || "N/A";
+            walletAddressElement.innerText = walletAddress;
+            qrCodeElement.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(walletAddress)}`;
+        }
+
+        function confirmInvestment() {
+            let amount = parseFloat(document.getElementById("amount").value);
+            let userId = localStorage.getItem("userId") || "Guest"; // Get user ID from local storage or use default
+
+            if (!selectedPlan || amount < selectedPlan.min || amount > selectedPlan.max) {
+                alert("Please enter a valid amount within the selected plan.");
+                return;
+            }
+
+            let investmentData = {
+                user: userId,
+                plan: selectedPlan.name,
+                amount: amount,
+                status: "Pending",
+                timestamp: new Date().toISOString(),
+            };
+
+            let pendingTrades = JSON.parse(localStorage.getItem("pendingTrades")) || [];
+            pendingTrades.push(investmentData);
+            localStorage.setItem("pendingTrades", JSON.stringify(pendingTrades));
+
+            fetch("http://localhost:5000/invest", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(investmentData),
+            })
+            .then((response) => response.json())
+            .then(() => {
+                alert("Investment submitted successfully! Awaiting admin approval.");
+                if (typeof socket !== "undefined") {
+                    socket.emit("newInvestment", investmentData);
+                }
+                window.location.href = "dashboard.html";
+            })
+            .catch(() => alert("Failed to submit investment. Please try again."));
+        }
+
+        function updateCryptoPrices() {
+            fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd")
+                .then((response) => response.json())
+                .then((data) => {
+                    document.getElementById("btc-price").innerText = `$${data.bitcoin.usd.toFixed(2)}`;
+                    document.getElementById("eth-price").innerText = `$${data.ethereum.usd.toFixed(2)}`;
+                })
+                .catch(() => console.error("Error fetching crypto prices."));
+        }
+    </script>
+</body>
+</html>

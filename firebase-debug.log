@@ -1,0 +1,30 @@
+[debug] [2025-07-04T17:03:48.128Z] ----------------------------------------------------------------------
+[debug] [2025-07-04T17:03:48.133Z] Command:       /home/hadeyeenkah/.nvm/versions/node/v20.19.3/bin/node /home/hadeyeenkah/.nvm/versions/node/v20.19.3/bin/firebase init
+[debug] [2025-07-04T17:03:48.134Z] CLI Version:   14.9.0
+[debug] [2025-07-04T17:03:48.134Z] Platform:      linux
+[debug] [2025-07-04T17:03:48.134Z] Node Version:  v20.19.3
+[debug] [2025-07-04T17:03:48.135Z] Time:          Fri Jul 04 2025 18:03:48 GMT+0100 (West Africa Standard Time)
+[debug] [2025-07-04T17:03:48.135Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-07-04T17:03:48.144Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-07-04T17:03:53.487Z] Error: Timed out.
+    at Timeout._onTimeout (/home/hadeyeenkah/.nvm/versions/node/v20.19.3/lib/node_modules/firebase-tools/lib/utils.js:267:49)
+    at listOnTimeout (node:internal/timers:581:17)
+    at process.processTimers (node:internal/timers:519:7)
+[error] 
+[error] Error: An unexpected error has occurred.
+[debug] [2025-07-04T17:04:53.728Z] ----------------------------------------------------------------------
+[debug] [2025-07-04T17:04:53.733Z] Command:       /home/hadeyeenkah/.nvm/versions/node/v20.19.3/bin/node /home/hadeyeenkah/.nvm/versions/node/v20.19.3/bin/firebase init --debug
+[debug] [2025-07-04T17:04:53.735Z] CLI Version:   14.9.0
+[debug] [2025-07-04T17:04:53.735Z] Platform:      linux
+[debug] [2025-07-04T17:04:53.735Z] Node Version:  v20.19.3
+[debug] [2025-07-04T17:04:53.736Z] Time:          Fri Jul 04 2025 18:04:53 GMT+0100 (West Africa Standard Time)
+[debug] [2025-07-04T17:04:53.736Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-07-04T17:04:53.746Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-07-04T17:04:59.100Z] Error: Timed out.
+    at Timeout._onTimeout (/home/hadeyeenkah/.nvm/versions/node/v20.19.3/lib/node_modules/firebase-tools/lib/utils.js:267:49)
+    at listOnTimeout (node:internal/timers:581:17)
+    at process.processTimers (node:internal/timers:519:7)
+[error] 
+[error] Error: An unexpected error has occurred.

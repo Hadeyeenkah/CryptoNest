@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CryptoNest - Sign Up / Login</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #131314, #121111);
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background: rgba(0, 0, 0, 0.85);
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 4px 20px rgba(0, 255, 255, 0.5);
+            text-align: center;
+            width: 380px;
+            transition: all 0.3s ease-in-out;
+        }
+        .container h2 {
+            margin-bottom: 20px;
+            font-size: 28px;
+            font-weight: 600;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            background: #121212;
+            color: white;
+            font-size: 16px;
+            transition: border 0.3s;
+        }
+        input:focus {
+            border-color: cyan;
+            outline: none;
+        }
+        .btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(45deg, cyan, #00bcd4);
+            color: black;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 18px;
+            transition: background 0.3s;
+        }
+        .btn:hover {
+            background: linear-gradient(45deg, #00bcd4, cyan);
+        }
+        .toggle {
+            margin-top: 15px;
+            color: cyan;
+            cursor: pointer;
+            font-size: 14px;
+            transition: color 0.3s;
+        }
+        .toggle:hover {
+            text-decoration: underline;
+            color: #00bcd4;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="auth-container">
+        <h2 id="form-title">Sign Up</h2>
+        <input type="text" id="first-name" placeholder="First Name" required>
+        <input type="text" id="last-name" placeholder="Last Name" required>
+        <input type="text" id="username" placeholder="Username" required>
+        <input type="email" id="email" placeholder="Email" required>
+        <input type="text" id="phone" placeholder="Phone Number" required>
+        <input type="password" id="password" placeholder="Password" required>
+        <button class="btn" id="auth-btn">Sign Up</button>
+        <p class="toggle" id="toggle-form">Already have an account? Login</p>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+    let users = JSON.parse(localStorage.getItem("users")) || [];
+    
+    const formTitle = document.getElementById("form-title");
+    const authBtn = document.getElementById("auth-btn");
+    const toggleText = document.getElementById("toggle-form");
+    const emailField = document.getElementById("email");
+    const firstNameField = document.getElementById("first-name");
+    const lastNameField = document.getElementById("last-name");
+    const phoneField = document.getElementById("phone");
+    const usernameField = document.getElementById("username");
+    const passwordField = document.getElementById("password");
+
+    toggleText.addEventListener("click", function () {
+        if (formTitle.innerText === "Sign Up") {
+            formTitle.innerText = "Login";
+            authBtn.innerText = "Login";
+            toggleText.innerText = "Don't have an account? Sign Up";
+            emailField.classList.add("hidden");
+            firstNameField.classList.add("hidden");
+            lastNameField.classList.add("hidden");
+            phoneField.classList.add("hidden");
+        } else {
+            formTitle.innerText = "Sign Up";
+            authBtn.innerText = "Sign Up";
+            toggleText.innerText = "Already have an account? Login";
+            emailField.classList.remove("hidden");
+            firstNameField.classList.remove("hidden");
+            lastNameField.classList.remove("hidden");
+            phoneField.classList.remove("hidden");
+        }
+    });
+
+    authBtn.addEventListener("click", function () {
+        let username = usernameField.value.trim();
+        let password = passwordField.value.trim();
+
+        if (formTitle.innerText === "Sign Up") {
+            let email = emailField.value.trim();
+            let firstName = firstNameField.value.trim();
+            let lastName = lastNameField.value.trim();
+            let phone = phoneField.value.trim();
+
+            if (!validateEmail(email)) {
+                alert("Invalid email format");
+                return;
+            }
+
+            if (!validatePassword(password)) {
+                alert("Password must be at least 6 characters and contain a number");
+                return;
+            }
+
+            if (users.find(user => user.username === username)) {
+                alert("Username already exists. Choose another");
+                return;
+            }
+
+            let newUser = { username, email, firstName, lastName, phone, password };
+            users.push(newUser);
+            localStorage.setItem("users", JSON.stringify(users));
+            alert("Signup successful! You can now log in.");
+            toggleText.click();
+        } else {
+            let validUser = users.find(user => user.username === username && user.password === password);
+            if (validUser) {
+                localStorage.setItem("loggedInUser", JSON.stringify(validUser));
+                window.location.href = "dashboard.html";
+            } else {
+                alert("Invalid credentials. Please try again.");
+            }
+        }
+    });
+
+    function validateEmail(email) {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    }
+
+    function validatePassword(password) {
+        return password.length >= 6 && /\d/.test(password);
+    }
+});
+    </script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Investment History</title>
+    <link rel="stylesheet" href="history.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"></script>
+</head>
+<body>
+
+    <div class="sidebar">
+        <h2>CryptoNest</h2>
+        <ul>
+            <li onclick="window.location.href='dashboard.html';"><i class="fa-solid fa-chart-line"></i> Dashboard</li>
+            <li onclick="window.location.href='investment.html';"><i class="fa-solid fa-plus-circle"></i> New Investment</li>
+            <li class="active"><i class="fa-solid fa-history"></i> Investment History</li>
+            <li onclick="window.location.href='withdraw.html';"><i class="fa-solid fa-wallet"></i> Withdraw</li>
+            <li onclick="window.location.href='profile.html';"><i class="fa-solid fa-user"></i> Profile</li>
+        </ul>
+    </div>
+
+    <div class="content">
+        <h1>Investment History</h1>
+        <table>
+            <thead>
+                <tr>
+                    <th>Plan</th>
+                    <th>Amount</th>
+                    <th>Start Date</th>
+                    <th>End Date</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="history-table">
+                <!-- Data will be inserted dynamically -->
+            </tbody>
+        </table>
+    </div>
+
+    <script src="investment-history.js"></script>
+</body>
+</html>

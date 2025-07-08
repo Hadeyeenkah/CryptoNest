@@ -1,0 +1,339 @@
+/* SupportChat.css - Styles for SupportChatPage */
+
+/* --- Base Styles & Typography --- */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+body {
+    font-family: 'Inter', sans-serif;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    line-height: 1.6;
+    background-color: #f0f2f5; /* Light background, consistent with Dashboard */
+    color: #333; /* Default text color */
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* --- Dark Mode Compatibility --- */
+body.dark-mode .support-chat-page-container {
+    background-color: #1a202c; /* Dark background */
+}
+
+body.dark-mode .support-chat-card {
+    background-color: #2d3748; /* Darker background for the card */
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    border: 1px solid #4a5568;
+}
+
+body.dark-mode .support-chat-card h2 {
+    color: #e2e8f0; /* Light text for titles */
+}
+
+body.dark-mode .card-description,
+body.dark-mode .form-group label {
+    color: #a0aec0; /* Lighter gray for secondary text */
+}
+
+body.dark-mode .input-field {
+    background-color: #4a5568;
+    border-color: #6b7280;
+    color: #e2e8f0;
+}
+
+body.dark-mode .input-field::placeholder {
+    color: #a0aec0;
+}
+
+body.dark-mode .button-primary {
+    background-color: #6a0dad; /* Deeper purple for dark mode primary */
+}
+
+body.dark-mode .button-primary:hover:not(:disabled) {
+    background-color: #5a0a9c;
+}
+
+body.dark-mode .button-secondary {
+    background-color: #4a5568;
+    color: #e2e8f0;
+}
+
+body.dark-mode .button-secondary:hover:not(:disabled) {
+    background-color: #6b7280;
+}
+
+body.dark-mode .modal-container {
+    background-color: #2d3748;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+body.dark-mode .modal-title {
+    color: #e2e8f0;
+}
+
+body.dark-mode .modal-description {
+    color: #a0aec0;
+}
+
+body.dark-mode .modal-close {
+    color: #a0aec0;
+}
+
+body.dark-mode .modal-close:hover {
+    color: #e2e8f0;
+}
+
+
+/* --- Main Page Container --- */
+.support-chat-page-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); /* Consistent gradient with dashboard */
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+/* --- Support Chat Card --- */
+.support-chat-card {
+    background-color: #ffffff;
+    padding: 40px;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    max-width: 600px; /* Wider card for message content */
+    width: 100%;
+    border: 1px solid #e2e8f0;
+    animation: slideInUp 0.5s ease-out;
+}
+
+@keyframes slideInUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.support-chat-card h2 {
+    font-size: 2.2em;
+    color: #4a0072; /* Darker purple */
+    margin-bottom: 15px;
+    font-weight: 700;
+}
+
+.card-description {
+    font-size: 1em;
+    color: #666;
+    margin-bottom: 30px;
+    line-height: 1.5;
+}
+
+/* --- Form Elements --- */
+.support-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px; /* Space between form groups */
+}
+
+.form-group {
+    text-align: left;
+}
+
+.form-group label {
+    display: block;
+    font-size: 0.95em;
+    color: #555;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.input-field {
+    width: 100%;
+    padding: 12px 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 1.1em;
+    color: #333;
+    box-sizing: border-box;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.input-field:focus {
+    outline: none;
+    border-color: #8b5cf6; /* Purple focus */
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2);
+}
+
+textarea.input-field {
+    resize: vertical; /* Allow vertical resizing */
+    min-height: 120px; /* Minimum height for textarea */
+}
+
+.form-actions {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+/* --- Buttons --- */
+.button-primary, .button-secondary {
+    width: 100%;
+    padding: 14px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.1em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.button-primary {
+    background-color: #673AB7; /* Primary purple */
+    color: white;
+}
+
+.button-primary:hover:not(:disabled) {
+    background-color: #5e35b1;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15);
+}
+
+.button-primary:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+    opacity: 0.7;
+    box-shadow: none;
+}
+
+.button-secondary {
+    background-color: #f0f0f0; /* Light gray */
+    color: #673AB7; /* Primary purple text */
+    border: 1px solid #ddd;
+}
+
+.button-secondary:hover:not(:disabled) {
+    background-color: #e0e0e0;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* --- Modal Styles (Consistent with Dashboard.css) --- */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-container {
+  background-color: #ffffff;
+  padding: 30px;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  max-width: 450px;
+  width: 90%;
+  text-align: center;
+  animation: modalFadeIn 0.3s ease-out;
+  position: relative;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.modal-title {
+  font-size: 1.8em;
+  color: #673AB7;
+  font-weight: 700;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #999;
+  transition: color 0.2s ease;
+}
+
+.modal-close:hover {
+  color: #333;
+}
+
+.modal-content {
+  text-align: left;
+}
+
+.modal-description {
+  font-size: 1em;
+  color: #555;
+  line-height: 1.5;
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- Loading Screen Styles (Consistent with App.jsx/DashboardPage.jsx) --- */
+.loading-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); /* Gradient background */
+  color: white;
+  font-family: 'Inter', sans-serif;
+  font-size: 1.2rem;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+}
+
+.spinner {
+  border: 8px solid rgba(255, 255, 255, 0.3);
+  border-top: 8px solid #fff;
+  border-radius: 50%;
+  width: 60px;
+  height: 60px;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* --- Responsive Adjustments --- */
+@media (max-width: 600px) {
+    .support-chat-card {
+        padding: 25px;
+        margin: 15px;
+    }
+    .support-chat-card h2 {
+        font-size: 1.8em;
+    }
+    .card-description {
+        font-size: 0.9em;
+        margin-bottom: 20px;
+    }
+    .input-field {
+        padding: 10px 12px;
+        font-size: 1em;
+    }
+    .button-primary, .button-secondary {
+        padding: 12px 15px;
+        font-size: 1em;
+    }
+    .form-actions {
+        gap: 10px;
+    }
+}

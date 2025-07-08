@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bitcoin Wallet</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #121212;
+            color: white;
+            text-align: center;
+            padding: 20px;
+        }
+        .wallet-container {
+            background: #1e1e1e;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px cyan;
+            display: inline-block;
+            margin-top: 50px;
+        }
+        .wallet-address {
+            font-size: 18px;
+            background: #222;
+            padding: 10px;
+            border-radius: 5px;
+            word-wrap: break-word;
+            display: inline-block;
+            margin-top: 10px;
+        }
+        .qr-code {
+            margin-top: 20px;
+        }
+        .qr-code img {
+            width: 200px;
+            border-radius: 10px;
+            border: 2px solid cyan;
+        }
+        .confirm-button {
+            background: cyan;
+            color: black;
+            padding: 12px;
+            border: none;
+            border-radius: 5px;
+            margin-top: 20px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: background 0.3s ease, transform 0.2s ease;
+        }
+        .confirm-button:hover {
+            background: darkcyan;
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+    <h1>Bitcoin Wallet Payment</h1>
+    <div class="wallet-container">
+        <p>Send your payment to the Bitcoin wallet address below:</p>
+        <div class="wallet-address">1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa</div>
+        <div class="qr-code">
+            <img src="qr-code-placeholder.png" alt="QR Code">
+        </div>
+        <button class="confirm-button">Confirm Payment</button>
+    </div>
+    <script>
+        document.querySelector(".confirm-button").addEventListener("click", function () {
+            // Save pending payment in local storage
+            localStorage.setItem("pendingPayment", JSON.stringify({
+                status: "Pending",
+                timestamp: new Date().toLocaleString()
+            }));
+    
+            // Redirect to investment page
+            window.location.href = "investment.html";
+        });
+    </script>
+    
+</body>
+</html>
