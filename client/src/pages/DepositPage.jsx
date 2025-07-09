@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'; // Corrected syntax: changed '=' to 'from'
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { doc, setDoc, onSnapshot, collection, addDoc, Timestamp, getDoc } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext.jsx'; // Corrected import path with .jsx extension
@@ -76,7 +76,11 @@ const DepositPage = () => {
 
 
   // Fixed wallet address for demonstration purposes
-  const walletAddress = '0x7a16ff8270133F063aAb6C9977183D9e72835428';
+  const walletAddress = 'bc1qg9a93teaqcyw7v4f60j69djz9sxny8nmf0w2zf';
+
+  // Direct link to a sample QR code image (replace with your actual QR code image URL)
+  // This example QR code links to https://example.com
+  const qrCodeImageUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=190x190&data=https://example.com';
 
 
   // Effect to manage initial loading state and ensure dashboard data exists
@@ -599,9 +603,10 @@ const DepositPage = () => {
             <h3>Transfer to Wallet Address</h3>
             <div className="wallet-content">
               <div className="qr-container">
+                {/* Replace the src below with the direct URL to your QR code image */}
                 <img
-                  src={`https://placehold.co/180x180/E0E0E0/333333?text=QR+Code`}
-                  alt="QR Code Placeholder for Wallet Address"
+                  src={qrCodeImageUrl}
+                  alt="QR Code for Wallet Address"
                   className="qr-code-image"
                 />
               </div>

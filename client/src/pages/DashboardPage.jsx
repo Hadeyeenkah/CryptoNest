@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { doc, getDoc, setDoc, onSnapshot, collection, query, orderBy } from "firebase/firestore"; // Added collection, query, orderBy
-import { Timestamp } from 'firebase/firestore'; // Ensure Timestamp is imported
+import { doc, getDoc, setDoc, onSnapshot, collection, query, orderBy, Timestamp } from "firebase/firestore";
 
-import { useAuth } from '../contexts/AuthContext.jsx'; // Corrected import path with .jsx extension
+import { useAuth } from '../contexts/AuthContext.jsx';
 import './dashboard.css'; // Corrected import path for CSS
 
 // Helper function to format numbers as currency
@@ -166,7 +165,7 @@ const DashboardPage = () => {
   const navigate = useNavigate(); // Initialize useNavigate
 
   // Consume Firebase state from AuthContext
-  const { db, userId, isAuthReady, loading: authLoading, authError, appId, userProfile, user, isAdmin } = useAuth(); // Added 'isAdmin'
+  const { db, userId, isAuthReady, loading: authLoading, authError, appId, userProfile, user, isAdmin } = useAuth();
 
   // Compute name fallback chain
   const firstName =
@@ -178,9 +177,13 @@ const DashboardPage = () => {
   // Dashboard data states
   const [currentInvestment, setCurrentInvestment] = useState(null);
   const [balance, setBalance] = useState(0);
-  const [dailyEarnings, setDailyEarnings] = useState(0);
   const [totalInvested, setTotalInvested] = useState(0);
   const [transactions, setTransactions] = useState([]); // State for user's transactions
+
+  // States for daily earnings calculation and animation
+  const [lastDailyEarningTimestamp, setLastDailyEarningTimestamp] = useState(null);
+  const [lastCalculatedDailyEarningAmount, setLastCalculatedDailyEarningAmount] = useState(0);
+  const [displayDailyEarnings, setDisplayDailyEarnings] = useState(0); // For animated display
 
   // UI state
   const [showInfoModal, setShowInfoModal] = useState(false);
@@ -200,16 +203,18 @@ const DashboardPage = () => {
     let unsubscribeTransactions = () => {};
 
     // Only proceed if Firebase is ready and we have a userId
-    if (db && userId && isAuthReady && appId) { // Ensure appId is available
+    if (db && userId && isAuthReady && appId) {
       const userDashboardDocRef = doc(db, 'artifacts', appId, 'users', userId, 'dashboardData', 'data');
 
       unsubscribeDashboard = onSnapshot(userDashboardDocRef, (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
           setBalance(data.balance || 0);
-          setDailyEarnings(data.dailyEarnings || 0);
+          // Set the last calculated amount, which will be the target for animation
+          setLastCalculatedDailyEarningAmount(data.lastCalculatedDailyEarningAmount || 0);
           setTotalInvested(data.totalInvested || 0);
           setCurrentInvestment(data.currentInvestment || null);
+          setLastDailyEarningTimestamp(data.lastDailyEarningTimestamp ? data.lastDailyEarningTimestamp.toDate() : null);
 
           console.log("DashboardPage: Fetched dashboard data:", data);
         } else {
@@ -217,15 +222,17 @@ const DashboardPage = () => {
           const initialData = {
             currentInvestment: null,
             balance: 1000.00, // Initial balance for new users
-            dailyEarnings: 0,
             totalInvested: 0,
+            lastDailyEarningTimestamp: null,
+            lastCalculatedDailyEarningAmount: 0,
           };
           setDoc(userDashboardDocRef, initialData)
             .then(() => {
               console.log("Initial user dashboard data set in Firestore.");
               setBalance(initialData.balance);
-              setDailyEarnings(initialData.dailyEarnings);
               setTotalInvested(initialData.totalInvested);
+              setLastDailyEarningTimestamp(initialData.lastDailyEarningTimestamp);
+              setLastCalculatedDailyEarningAmount(initialData.lastCalculatedDailyEarningAmount);
             })
             .catch(error => console.error("Error setting initial user dashboard data:", error));
         }
@@ -236,19 +243,17 @@ const DashboardPage = () => {
         setInfoModalMessage(`Failed to load dashboard data: ${error.message}. Please refresh.`);
       });
 
-      // MODIFIED: Listen to user's transactions subcollection
+      // Listen to user's transactions subcollection
       const transactionsCollectionRef = collection(db, 'artifacts', appId, 'users', userId, 'transactions');
-      // Order by timestamp descending to show newest first
       const q = query(transactionsCollectionRef, orderBy('timestamp', 'desc'));
 
       unsubscribeTransactions = onSnapshot(q, (snapshot) => {
         const fetchedTransactions = snapshot.docs.map(doc => ({
-          id: doc.id, // Firestore document ID is unique
+          id: doc.id,
           ...doc.data(),
-          // Ensure timestamp is a Date object for consistent display
           timestamp: doc.data().timestamp instanceof Timestamp
-                     ? doc.data().timestamp.toDate()
-                     : new Date(doc.data().timestamp), // Fallback for non-Timestamp dates
+                       ? doc.data().timestamp.toDate()
+                       : new Date(doc.data().timestamp),
         }));
         setTransactions(fetchedTransactions);
         console.log("DashboardPage: Fetched user transactions from subcollection:", fetchedTransactions);
@@ -259,10 +264,9 @@ const DashboardPage = () => {
         setInfoModalMessage(`Failed to load transaction history: ${error.message}.`);
       });
 
-
       return () => {
-        unsubscribeDashboard(); // Cleanup dashboard data listener
-        unsubscribeTransactions(); // Cleanup transactions listener
+        unsubscribeDashboard();
+        unsubscribeTransactions();
       };
     }
   }, [db, userId, isAuthReady, appId]);
@@ -281,6 +285,7 @@ const DashboardPage = () => {
     setIsDarkMode(prevMode => !prevMode);
   };
 
+  // Callback to update Firestore data
   const updateFirestoreData = useCallback(async (newData) => {
     if (!db || !userId || !appId) {
       console.error("Firestore, User ID, or App ID not available for update.");
@@ -301,6 +306,95 @@ const DashboardPage = () => {
     }
   }, [db, userId, appId]);
 
+  // Effect for daily earnings calculation and balance update
+  const calculateDailyEarningsEffect = useCallback(async () => {
+    if (isLoading || !currentInvestment || totalInvested <= 0) {
+      return;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Normalize to start of day
+
+    let lastCalcDate = lastDailyEarningTimestamp;
+    if (lastCalcDate) {
+      lastCalcDate.setHours(0, 0, 0, 0); // Normalize to start of day
+    }
+
+    // Check if a new day has started since the last calculation
+    // Or if it's the very first time (lastCalcDate is null)
+    if (!lastCalcDate || lastCalcDate.getTime() < today.getTime()) {
+      const earningsForToday = totalInvested * currentInvestment.dailyROI;
+      const newBalance = balance + earningsForToday;
+
+      console.log(`Daily earnings calculation: totalInvested=${totalInvested}, dailyROI=${currentInvestment.dailyROI}, earningsForToday=${earningsForToday}`);
+      console.log(`New Balance after daily payout: ${newBalance}`);
+
+      // Update Firestore with the new balance and daily earnings amount
+      await updateFirestoreData({
+        balance: newBalance,
+        lastCalculatedDailyEarningAmount: earningsForToday, // Store the full daily earning for display
+        lastDailyEarningTimestamp: Timestamp.now(), // Update to current time
+      });
+    } else {
+      // If it's the same day, ensure displayDailyEarnings reflects the last calculated amount
+      // This prevents re-animation if the component re-renders on the same day
+      setDisplayDailyEarnings(lastCalculatedDailyEarningAmount);
+    }
+  }, [isLoading, currentInvestment, totalInvested, lastDailyEarningTimestamp, balance, updateFirestoreData, lastCalculatedDailyEarningAmount]);
+
+  useEffect(() => {
+    // Run the daily earnings calculation logic
+    calculateDailyEarningsEffect();
+
+    // Set up a daily interval to re-check for new day and trigger earnings
+    // This interval runs every hour to catch the start of a new day reliably
+    const dailyCheckInterval = setInterval(() => {
+      calculateDailyEarningsEffect();
+    }, 1000 * 60 * 60); // Every hour
+
+    return () => clearInterval(dailyCheckInterval); // Cleanup interval
+  }, [calculateDailyEarningsEffect]);
+
+
+  // Effect for the "counting up" animation of daily earnings
+  useEffect(() => {
+    // Only animate if there's a target amount and the display hasn't reached it
+    if (lastCalculatedDailyEarningAmount > 0 && displayDailyEarnings < lastCalculatedDailyEarningAmount) {
+      let startValue = 0;
+      const duration = 1500; // 1.5 seconds for the animation
+      let startTime = null;
+
+      const animateCount = (timestamp) => {
+        if (!startTime) startTime = timestamp;
+        const progress = timestamp - startTime;
+        const percentage = Math.min(progress / duration, 1);
+        const currentCount = startValue + (percentage * (lastCalculatedDailyEarningAmount - startValue));
+
+        setDisplayDailyEarnings(parseFloat(currentCount.toFixed(2))); // Update state, limit to 2 decimal places
+
+        if (percentage < 1) {
+          requestAnimationFrame(animateCount);
+        } else {
+          // Ensure it ends precisely at the target value
+          setDisplayDailyEarnings(lastCalculatedDailyEarningAmount);
+        }
+      };
+
+      // Reset display to 0 before starting animation if it's a new animation cycle
+      if (displayDailyEarnings !== 0) { // Only reset if it's not already 0
+        setDisplayDailyEarnings(0);
+      }
+      requestAnimationFrame(animateCount);
+    } else if (lastCalculatedDailyEarningAmount === 0 && displayDailyEarnings !== 0) {
+      // If the target is 0, reset display to 0 immediately
+      setDisplayDailyEarnings(0);
+    } else if (lastCalculatedDailyEarningAmount > 0 && displayDailyEarnings === 0 && !isLoading) {
+      // If there's a target but display is 0 and not animating, set it directly (e.g., on page load after earnings already processed)
+      setDisplayDailyEarnings(lastCalculatedDailyEarningAmount);
+    }
+  }, [lastCalculatedDailyEarningAmount, isLoading]); // Trigger animation when the target amount changes
+
+
   const handleSelectPlan = useCallback(async (plan) => {
     if (!db || !userId || !appId) {
       setShowInfoModal(true);
@@ -313,28 +407,6 @@ const DashboardPage = () => {
     // Redirect to deposit page after selecting a plan
     navigate('/deposit');
   }, [db, userId, appId, updateFirestoreData, navigate]);
-
-  // Simulate earnings update (now based on Firestore-synced data)
-  useEffect(() => {
-    let interval;
-    // Only simulate earnings if a plan is active and balance is positive
-    if (!isLoading && currentInvestment && balance > 0) {
-      interval = setInterval(() => {
-        // Calculate daily earnings based on the current balance and daily ROI
-        const earningsPerMinute = (balance * currentInvestment.dailyROI) / (24 * 60);
-        const newBalance = balance + earningsPerMinute;
-        const newDailyEarnings = dailyEarnings + earningsPerMinute;
-
-        // Update Firestore with the new balance and daily earnings
-        updateFirestoreData({
-          balance: newBalance,
-          dailyEarnings: newDailyEarnings,
-        });
-      }, 60000); // Update every minute (60,000 milliseconds)
-
-      return () => clearInterval(interval); // Cleanup interval on component unmount or dependencies change
-    }
-  }, [currentInvestment, balance, dailyEarnings, isLoading, updateFirestoreData]);
 
 
   if (isLoading) {
@@ -353,7 +425,7 @@ const DashboardPage = () => {
 
   return (
     <div className="dashboard">
-      <div className="dashboard-content"> {/* Added a wrapper div for content */}
+      <div className="dashboard-content">
         {/* Theme Toggle Button */}
         <button
           onClick={toggleDarkMode}
@@ -392,13 +464,12 @@ const DashboardPage = () => {
             <div className="header-content">
               <div className="welcome-text">
                 <h1 className="welcome-title">
-                  Welcome back, <span className="username">{firstName}!</span> {/* Updated to use firstName */}
+                  Welcome, <span className="username">{firstName}</span>
                 </h1>
                 <p className="welcome-subtitle">Your financial journey continues here</p>
                 {userId && <p className="user-id-display">User ID: {userId}</p>}
               </div>
               <div className="header-actions">
-                {/* Removed Settings Button */}
                 {isAdmin && (
                   <button
                     onClick={() => navigate('/admin')}
@@ -450,8 +521,11 @@ const DashboardPage = () => {
                 </div>
                 <div className="stat-content">
                   <h3 className="stat-label">Daily Earnings</h3>
-                  <p className="stat-value">{formatCurrency(dailyEarnings)}</p>
-                  <span className="stat-change positive">+12.3% ROI today</span>
+                  {/* Display the animated earnings */}
+                  <p className="stat-value">{formatCurrency(displayDailyEarnings)}</p>
+                  <span className="stat-change positive">
+                    {currentInvestment ? `${(currentInvestment.dailyROI * 100).toFixed(0)}% ROI today` : 'No active plan'}
+                  </span>
                 </div>
               </div>
 
@@ -489,7 +563,7 @@ const DashboardPage = () => {
                 <div className="transactions-list">
                   {transactions.map((transaction, index) => (
                     <div
-                      key={transaction.id} // This key is now guaranteed to be unique from Firestore doc.id
+                      key={transaction.id}
                       className={`transaction-item ${transaction.type}`}
                       style={{ animationDelay: `${index * 0.1}s` }}
                     >
@@ -511,7 +585,6 @@ const DashboardPage = () => {
                         <span className="transaction-date">
                           {transaction.timestamp ? transaction.timestamp.toLocaleString() : 'N/A'}
                         </span>
-                        {/* Display transaction status */}
                         {transaction.status && (
                           <span className={`transaction-status status-${transaction.status.toLowerCase()}`}>
                             {transaction.status}
