@@ -143,166 +143,53 @@
   }
   
   /* Navbar styles */
-  /* Navbar base styles */
-.navbar {
-  position: sticky;
-  top: 0;
-  z-index: 100; /* Increased z-index to ensure it's on top */
-  background-color: rgba(255, 255, 255, 0.98); /* Your requested semi-transparent white background */
-  box-shadow: var(--shadow-sm); /* Using your existing shadow variable */
-  padding: 1rem 0;
-  backdrop-filter: blur(8px); /* Your requested blur effect */
-}
-
-.navbar-container {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  max-width: 1280px; /* Using a fixed max-width for consistency */
-  margin: 0 auto;
-  padding: 0 1.5rem; /* Padding on sides */
-}
-
-.navbar-logo {
-  font-size: 1.8rem; /* Slightly larger logo */
-  font-weight: 700;
-  text-decoration: none;
-  /* The color for the logo text is now handled by .logo-text */
-}
-
-.logo-text {
-  background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  color: transparent; /* Ensure text is transparent to show gradient */
-  transition: all 0.3s ease-in-out; /* Smooth transition for potential hover effects */
-}
-
-/* Desktop Navigation Menu */
-/* This now acts as the .navbar-links container from your snippet */
-.nav-menu {
-  display: flex;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  align-items: center;
-  gap: 2rem; /* Your requested gap for desktop links */
-}
-
-.nav-item {
-  /* Removed margin-left as gap handles spacing now */
-}
-
-.nav-link {
-  color: white !important; /* IMPORTANT: Ensures desktop links are white */
-  text-decoration: none;
-  font-weight: 500;
-  font-size: 1rem; /* Your requested font size */
-  padding: 0.5rem 0; /* Add some padding for better click area */
-  transition: color 0.3s ease-in-out;
-}
-
-.nav-link:hover {
-  color: var(--primary-color) !important; /* Hover effect using your theme's primary color */
-}
-
-/* Navbar Auth section - assuming this will contain login/signup/logout buttons */
-.navbar-auth {
-  display: flex;
-  align-items: center;
-  gap: 1rem; /* Your requested gap for auth buttons */
-}
-
-/* Mobile Menu Icon */
-.menu-icon {
-  display: none; /* Hidden on desktop */
-  cursor: pointer;
-  flex-direction: column;
-  justify-content: space-around;
-  width: 30px;
-  height: 25px;
-  z-index: 1001; /* Ensure it's above other content */
-}
-
-.menu-icon .bar {
-  width: 100%;
-  height: 3px;
-  background-color: #1e293b; /* Bars should be dark to contrast with white navbar */
-  border-radius: 5px;
-  transition: all 0.3s ease-in-out;
-}
-
-/* Active state for menu icon (hamburger to X) */
-.menu-icon.active .bar:nth-child(1) {
-  transform: translateY(11px) rotate(45deg);
-}
-
-.menu-icon.active .bar:nth-child(2) {
-  opacity: 0;
-}
-
-.menu-icon.active .bar:nth-child(3) {
-  transform: translateY(-11px) rotate(-45deg);
-}
-
-/* Mobile Menu Overlay */
-@media (max-width: 768px) {
-  .menu-icon {
-    display: flex; /* Show on mobile */
-  }
-
-  .nav-menu {
-    flex-direction: column;
-    width: 100%;
-    height: 100vh; /* Full viewport height */
-    position: fixed;
+  .navbar {
+    position: sticky;
     top: 0;
-    left: -100%; /* Start off-screen */
-    opacity: 0;
-    background-color: #1e293b; /* Dark background for mobile menu */
-    padding: 4rem 1.5rem; /* Padding for mobile menu content */
-    transition: all 0.5s ease-in-out;
+    z-index: 100;
+    background-color: rgba(255, 255, 255, 0.98);
+    box-shadow: var(--shadow-sm);
+    padding: 1rem 0;
+    backdrop-filter: blur(8px);
+  }
+  
+  .navbar-container {
+    display: flex;
     align-items: center;
-    justify-content: center;
-    z-index: 1000;
+    justify-content: space-between;
   }
-
-  .nav-menu.active {
-    left: 0; /* Slide in */
-    opacity: 1;
+  
+  .navbar-logo {
+    font-size: 1.5rem;
+    font-weight: 700;
   }
-
-  .nav-item {
-    margin: 1rem 0; /* Vertical spacing for mobile nav items */
+  
+  .logo-text {
+    background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
   }
-
-  .nav-link {
-    color: white !important; /* IMPORTANT: Ensures mobile links are white */
-    font-size: 1.6rem; /* Larger font for mobile links */
-    padding: 0.75rem 0;
-    display: block; /* Make links block-level for better tap area */
-    text-align: center;
+  
+  .navbar-links {
+    display: flex;
+    gap: 2rem;
   }
-
-  /* Style for the Logout button in mobile menu */
-  .nav-menu .btn.btn-secondary {
-    color: white !important; /* Ensure button text is white */
-    background-color: var(--primary-color); /* Use primary color for button background */
-    padding: 0.75rem 1.5rem;
-    border-radius: 0.5rem;
-    font-size: 1.2rem;
-    margin-top: 1.5rem; /* Space above the button */
-    border: none; /* Remove default button border */
-    cursor: pointer;
-    transition: background-color 0.3s ease;
+  
+  .navbar-links a {
+    color: var(--text-color);
+    font-weight: 500;
+    font-size: 1rem;
   }
-
-  .nav-menu .btn.btn-secondary:hover {
-    background-color: var(--primary-hover); /* Darker hover state */
+  
+  .navbar-links a:hover {
+    color: var(--primary-color);
   }
-}
-
+  
+  .navbar-auth {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
   
   /* Hero section - LEFT ALIGNED */
   .hero-section {
