@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import './homepage.css'; // Make sure this path is correct relative to HomePage.jsx
 // Import Lucide React Icons for a modern look
@@ -80,9 +80,6 @@ const testimonials = [
 ];
 
 const HomePage = () => {
-  // No need for visibleSection state or scroll listener as we're using static classes
-  // and focusing on a professional presentation.
-
   return (
     <div className="homepage">
 
@@ -94,7 +91,9 @@ const HomePage = () => {
               CryptoWealth
             </h1>
             <p className="hero-description">
-              Join thousands of satisfied investors leveraging our advanced platform for superior crypto returns
+              Join thousands of satisfied 
+              investors leveraging 
+              our advanced platform for superior crypto returns
             </p>
             <div className="hero-cta">
               <Link to="/signup" className="btn btn-primary btn-large">
@@ -116,11 +115,7 @@ const HomePage = () => {
               </div>
             </div>
           </div>
-          <div className="hero-image">
-            {/* Placeholder for a hero image or animation */}
-            <Lightbulb className="lucide" />
-            
-          </div>
+          {/* The hero-image div has been removed as the image is now a background in CSS */}
         </div>
       </section>
 
@@ -204,14 +199,14 @@ const HomePage = () => {
               <div
                 className={`plan-card ${plan.recommended ? 'recommended' : ''}`}
                 key={plan.name}
-                style={{ borderTopColor: plan.color }} // Keep inline style for dynamic color
+                style={{ borderTopColor: plan.color }}
               >
                 {plan.recommended && (
                   <div className="recommended-badge">
                     Most Popular
                   </div>
                 )}
-                <h3 style={{ color: plan.color }}>{plan.name}</h3> {/* Keep inline style for dynamic color */}
+                <h3 style={{ color: plan.color }}>{plan.name}</h3>
                 <p className="plan-description">{plan.description}</p>
                 <div className="plan-details">
                   <div className="plan-detail">
@@ -220,7 +215,7 @@ const HomePage = () => {
                   </div>
                   <div className="plan-detail">
                     <span className="detail-label">Expected Returns:</span>
-                    <span className="detail-value" style={{ color: plan.color }}>{plan.expectedReturns}</span> {/* Keep inline style for dynamic color */}
+                    <span className="detail-value" style={{ color: plan.color }}>{plan.expectedReturns}</span>
                   </div>
                   <div className="plan-detail">
                     <span className="detail-label">Duration:</span>
