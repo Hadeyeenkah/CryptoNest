@@ -32,7 +32,7 @@ app.use(cors(corsOptions));
 // Parse JSON and URL-encoded data with a limit
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-app.use(express.static(path.join(__dirname, 'frontend', 'build')));
+app.use(express.static(path.join(__dirname, 'client', 'dist')));
 
 
 // --- Models ---
@@ -896,7 +896,7 @@ app.get('*', (req, res) => {
 });
 // 👇 Catch-all route to serve React app
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'frontend', 'build', 'index.html'));
+  res.sendFile(path.join(__dirname, 'client', 'dist', 'index.html'));
 });
 
 
