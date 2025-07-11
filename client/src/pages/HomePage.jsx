@@ -7,16 +7,6 @@ import {
   ArrowUp, ArrowDown, Star, Quote, CheckCircle, Lightbulb, TrendingDown
 } from 'lucide-react';
 
-// Mock cryptocurrency data (can be replaced with API calls later)
-const cryptoData = [
-  { name: 'Bitcoin', symbol: 'BTC', price: 67842.51, change: 2.4 },
-  { name: 'Ethereum', symbol: 'ETH', price: 3456.78, change: 1.7 },
-  { name: 'Solana', symbol: 'SOL', price: 132.45, change: 5.2 },
-  { name: 'Cardano', symbol: 'ADA', price: 0.48, change: -0.8 },
-  { name: 'XRP', symbol: 'XRP', price: 0.52, change: 0.15 },
-  { name: 'Dogecoin', symbol: 'DOGE', price: 0.15, change: -1.2 }
-];
-
 // Investment plans data
 const investmentPlans = [
   {
