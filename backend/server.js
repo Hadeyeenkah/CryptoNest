@@ -32,6 +32,8 @@ app.use(cors(corsOptions));
 // Parse JSON and URL-encoded data with a limit
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.static(path.join(__dirname, 'frontend', 'build')));
+
 
 // --- Models ---
 // Import Mongoose models for database interaction
