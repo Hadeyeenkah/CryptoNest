@@ -892,6 +892,10 @@ app.get('*', (req, res) => {
         res.status(404).json({ error: 'API endpoint not found' });
     }
 });
+// 👇 Catch-all route to serve React app
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'frontend', 'build', 'index.html'));
+});
 
 
 // --- Start the server ---
