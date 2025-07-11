@@ -9,14 +9,15 @@ import {
 
 // === FIX: Define cryptoData here ===
 const cryptoData = [
-  { name: 'Bitcoin', symbol: 'BTC', price: 65000.00, change: 2.5 },
-  { name: 'Ethereum', symbol: 'ETH', price: 3400.00, change: -1.2 },
-  { name: 'Ripple', symbol: 'XRP', price: 0.52, change: 0.8 },
-  { name: 'Litecoin', symbol: 'LTC', price: 75.00, change: 1.5 },
-  { name: 'Cardano', symbol: 'ADA', price: 0.40, change: -0.5 },
-  { name: 'Solana', symbol: 'SOL', price: 150.00, change: 3.1 },
-  { name: 'Dogecoin', symbol: 'DOGE', price: 0.12, change: 0.9 },
-  { name: 'Chainlink', symbol: 'LINK', price: 15.00, change: -0.7 },
+  { name: 'Bitcoin',   symbol: 'BTC',  price: 117642.00, change: +0.062 },
+  { name: 'Ethereum',  symbol: 'ETH',  price: 2994.11,   change: +0.077 },
+  { name: 'Ripple',    symbol: 'XRP',  price: 2.74,       change: +0.128 },
+  { name: 'Litecoin',  symbol: 'LTC',  price: 96.50,      change: +0.062 },
+  { name: 'Cardano',   symbol: 'ADA',  price: 0.7501,     change: +0.199 },
+  { name: 'Solana',    symbol: 'SOL',  price: 166.24,     change: +0.055 },
+  { name: 'Dogecoin',  symbol: 'DOGE', price: 0.2009,     change: +0.116 },
+  { name: 'Chainlink', symbol: 'LINK', price: 15.59,      change: +0.089 },
+
 ];
 // ===================================
 

@@ -117,7 +117,8 @@
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  /* Changed font-family for a more simple and professional look */
+  font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
   line-height: 1.6;
   color: var(--text-primary);
   background-color: var(--bg-primary);
@@ -273,45 +274,63 @@ body {
 
 /* ===== DASHBOARD HEADER ===== */
 .dashboard-header {
-  margin-bottom: var(--spacing-xl);
+  /* Reduced margin-bottom to bring elements closer */
+  margin-bottom: var(--spacing-md);
   animation: slideInDown 0.6s ease-out;
 }
 
 .header-content {
   display: flex;
+  /* Changed to column for stacking, then flex-wrap for responsiveness */
+  flex-direction: column;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start; /* Align items to the start */
   flex-wrap: wrap;
-  gap: var(--spacing-lg);
+  /* Reduced gap for closer elements */
+  gap: var(--spacing-sm);
 }
 
 .welcome-text {
   flex: 1;
   min-width: 280px;
+  /* Reduced margin-bottom to pull balance closer to welcome text */
+  margin-bottom: var(--spacing-xs); /* Adjust as needed for desired closeness */
 }
 
 .welcome-title {
   font-size: clamp(1.875rem, 4vw, 2.5rem);
   font-weight: 700;
   color: var(--text-primary);
-  margin-bottom: var(--spacing-sm);
+  /* Reduced margin-bottom to pull elements closer */
+  margin-bottom: var(--spacing-xs);
   line-height: 1.2;
-  letter-spacing: -0.02em; /* Added for a professional, refined look */
+  letter-spacing: -0.02em;
+  /* Updated font-family for a simple and professional look */
+  font-family: 'Open Sans', 'Lato', sans-serif; /* A simple, professional font stack */
 }
 
+/* Reverted .username change to display name */
 .username {
   background: var(--gradient-primary);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   animation: shimmer 3s ease-in-out infinite;
+  /* If you have a separate element for user ID, add a new class for it and hide it.
+     For example, if your user ID is in an element with class "user-id-display": */
+  /* .user-id-display {
+       display: none;
+     }
+  */
 }
+
 
 .welcome-subtitle {
   font-size: 1.125rem;
   color: var(--text-secondary);
-  margin-bottom: var(--spacing-sm);
-  line-height: 1.6; /* Explicitly set for readability and professional style */
+  /* Reduced margin-bottom for closer elements */
+  margin-bottom: var(--spacing-xs);
+  line-height: 1.6;
 }
 
 .header-actions {
@@ -399,7 +418,8 @@ body {
 
 /* ===== STATS SECTION ===== */
 .stats-section {
-  margin-bottom: var(--spacing-2xl);
+  /* Reduced margin-bottom to bring elements closer */
+  margin-bottom: var(--spacing-xl);
 }
 
 .stats-grid {

@@ -488,7 +488,7 @@ const DashboardPage = () => {
                   Welcome, <span className="username">{firstName}</span>
                 </h1>
                 <p className="welcome-subtitle">Your financial journey continues here</p>
-                {userId && <p className="user-id-display">User ID: {userId}</p>}
+                
               </div>
               <div className="header-actions">
                 {isAdmin && (
