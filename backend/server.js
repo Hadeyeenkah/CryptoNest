@@ -33,12 +33,6 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Serve static files from the 'client/dist' directory.
-// This middleware should be placed before your API routes IF your API routes
-// do not start with a distinct prefix (like '/api').
-// However, with '/api' prefix, its placement relative to API routes is less critical.
-app.use(express.static(path.join(__dirname, 'client', 'dist')));
-
 
 // --- Models ---
 // Import Mongoose models for database interaction
@@ -864,24 +858,17 @@ app.put('/api/admin/users/:userId', async (req, res) => {
 // your-repo/
 // ├── backend/
 // │   └── server.js
-// └── frontend/
-//     └── build/ (React build output)
-const frontendBuildPath = path.join(__dirname, '../frontend/build');
-
-// If your project structure is different, adjust `frontendBuildPath` accordingly:
-// Example 1: If server.js is at the root and React build is in 'build/' at the root:
-// const frontendBuildPath = path.join(__dirname, 'build');
-
-// Example 2: If server.js is at the root and React build is in 'frontend/build/':
-// const frontendBuildPath = path.join(__dirname, 'frontend', 'build');
+// └── client/
+//     └── dist/ (React build output)
+const frontendBuildPath = path.join(__dirname, 'client', 'dist');
 
 
 // Log the path to verify during deployment (check Render logs)
 console.log(`Serving static files from: ${frontendBuildPath}`);
 
 // Serve static files from the React build directory
-// This middleware will try to match incoming requests to files in the 'build' folder.
-// E.g., a request for /static/js/main.js will look for frontend/build/static/js/main.js
+// This middleware will try to match incoming requests to files in the 'dist' folder.
+// E.g., a request for /static/js/main.js will look for client/dist/static/js/main.js
 app.use(express.static(frontendBuildPath));
 
 // Catch-all route to serve the React app's index.html for any other GET requests.
@@ -891,18 +878,23 @@ app.get('*', (req, res) => {
     // This condition ensures that requests starting with '/api' are NOT served by index.html.
     // Instead, they will either be handled by an API route defined above, or fall through
     // to Express's default 404 handler (or the custom one below if implemented).
-    if (!req.path.startsWith('/api')) {
-        // Send the main index.html file from your React build
-        res.sendFile(path.join(frontendBuildPath, 'index.html'));
-    } else {
-        // If it's an /api path that didn't match any specific API route, send a 404 JSON response.
-        res.status(404).json({ error: 'API endpoint not found' });
+    if (req.path.startsWith('/api')) {
+        console.warn(`Attempted to serve index.html for an API path: ${req.url}. This indicates a routing issue.`);
+        return res.status(404).json({ error: 'API endpoint not found' });
     }
-});
-// 👇 Catch-all route to serve React app
-app.get('*', (req, res) => {
-    console.log(`Serving index.html for route: ${req.url}`);
-  res.sendFile(path.join(__dirname, 'client', 'dist', 'index.html'));
+
+    // Send the main index.html file from your React build
+    const indexPath = path.join(frontendBuildPath, 'index.html');
+    console.log(`Attempting to send index.html from: ${indexPath} for route: ${req.url}`);
+    res.sendFile(indexPath, (err) => {
+        if (err) {
+            console.error(`Error sending index.html for ${req.url}:`, err);
+            // Fallback for debugging: send a simple message if index.html can't be found
+            res.status(500).send('Error serving frontend application. Check server logs for details.');
+        } else {
+            console.log(`Successfully sent index.html for ${req.url}`);
+        }
+    });
 });
 
 
