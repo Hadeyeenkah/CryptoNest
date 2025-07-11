@@ -67,6 +67,7 @@ const INVESTMENT_PLANS = [
 
 // InvestmentPlanCard Component
 const InvestmentPlanCard = ({ plan, currentInvestment, onSelectPlan, index }) => {
+  // Compare by plan ID, as the stored currentInvestment won't have the icon
   const isActive = currentInvestment && currentInvestment.id === plan.id;
 
   return (
@@ -197,6 +198,11 @@ const DashboardPage = () => {
   // Combined loading state for the dashboard
   const isLoading = authLoading || !isAuthReady || !db || !userId;
 
+  // Helper to get the full plan object from its ID
+  const getPlanById = useCallback((planId) => {
+    return INVESTMENT_PLANS.find(p => p.id === planId) || null;
+  }, []);
+
   // Effect to fetch and listen to user data from Firestore
   useEffect(() => {
     let unsubscribeDashboard = () => {};
@@ -210,17 +216,24 @@ const DashboardPage = () => {
         if (docSnap.exists()) {
           const data = docSnap.data();
           setBalance(data.balance || 0);
-          // Set the last calculated amount, which will be the target for animation
           setLastCalculatedDailyEarningAmount(data.lastCalculatedDailyEarningAmount || 0);
           setTotalInvested(data.totalInvested || 0);
-          setCurrentInvestment(data.currentInvestment || null);
+
+          // Find the full plan object using the stored plan ID
+          // The stored data.currentInvestment might just be { id: 'basic' } or { id: 'gold', name: 'Gold Plan', ... (without icon) }
+          if (data.currentInvestment && data.currentInvestment.id) {
+            setCurrentInvestment(getPlanById(data.currentInvestment.id));
+          } else {
+            setCurrentInvestment(null);
+          }
+
           setLastDailyEarningTimestamp(data.lastDailyEarningTimestamp ? data.lastDailyEarningTimestamp.toDate() : null);
 
           console.log("DashboardPage: Fetched dashboard data:", data);
         } else {
           // Initialize user dashboard data if it doesn't exist
           const initialData = {
-            currentInvestment: null,
+            currentInvestment: null, // Store just the ID or null
             balance: 1000.00, // Initial balance for new users
             totalInvested: 0,
             lastDailyEarningTimestamp: null,
@@ -252,8 +265,8 @@ const DashboardPage = () => {
           id: doc.id,
           ...doc.data(),
           timestamp: doc.data().timestamp instanceof Timestamp
-                       ? doc.data().timestamp.toDate()
-                       : new Date(doc.data().timestamp),
+                         ? doc.data().timestamp.toDate()
+                         : (doc.data().timestamp ? new Date(doc.data().timestamp) : null), // Handle potentially missing timestamp
         }));
         setTransactions(fetchedTransactions);
         console.log("DashboardPage: Fetched user transactions from subcollection:", fetchedTransactions);
@@ -269,7 +282,7 @@ const DashboardPage = () => {
         unsubscribeTransactions();
       };
     }
-  }, [db, userId, isAuthReady, appId]);
+  }, [db, userId, isAuthReady, appId, getPlanById]); // Add getPlanById to dependencies
 
   // Effect to apply dark mode class to body
   useEffect(() => {
@@ -296,13 +309,14 @@ const DashboardPage = () => {
     }
     const userDocRef = doc(db, 'artifacts', appId, 'users', userId, 'dashboardData', 'data');
     try {
+      console.log("Attempting to send to Firestore:", newData); // For debugging
       await setDoc(userDocRef, newData, { merge: true });
       console.log("Data updated in Firestore.");
     } catch (error) {
       console.error("Error updating Firestore:", error);
       setShowInfoModal(true);
       setInfoModalTitle('Error');
-      setInfoModalMessage('Failed to update data. Please try again.');
+      setInfoModalMessage(`Failed to update data: ${error.message}.`);
     }
   }, [db, userId, appId]);
 
@@ -402,8 +416,15 @@ const DashboardPage = () => {
       setInfoModalMessage('System not ready. Please try again.');
       return;
     }
-    // Update Firestore with the new selected plan
-    await updateFirestoreData({ currentInvestment: plan });
+
+    // --- CRITICAL FIX HERE ---
+    // Create a new object that EXCLUDES the 'icon' property before sending to Firestore
+    const planToStore = { ...plan };
+    delete planToStore.icon;
+
+    await updateFirestoreData({ currentInvestment: planToStore });
+    // --- END CRITICAL FIX ---
+
     // Redirect to deposit page after selecting a plan
     navigate('/deposit');
   }, [db, userId, appId, updateFirestoreData, navigate]);

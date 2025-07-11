@@ -154,6 +154,7 @@ const AdminDashboard = () => {
     // Only proceed if Firebase instances are ready, user is confirmed admin, and auth check is complete
     if (db && appId && isAdmin && authChecked) {
       console.log("AdminDashboard: Firebase instances, admin status, and authChecked confirmed. Setting up data listeners.");
+      console.log("AdminDashboard: Current isAdmin status from useAuth:", isAdmin); // Added for debugging
       setDashboardLoading(true); // Start loading dashboard data
 
       // 1. Listen to all users' profiles for user management and overall stats
@@ -169,14 +170,17 @@ const AdminDashboard = () => {
 
         const usersDataPromises = snapshot.docs.map(async (userDoc) => {
           const userUid = userDoc.id;
-          console.log(`AdminDashboard: Processing user document with UID: ${userUid}`);
+          // Ensure appId is available before constructing paths, though it should be due to dependencies
+          if (!appId) {
+            console.error(`AdminDashboard: App ID is undefined when processing user ${userUid}. Skipping sub-document fetch.`);
+            return { id: userUid, email: 'N/A', fullName: 'N/A', username: 'N/A', isAdmin: false, createdAt: null, balance: 0, totalInvestment: 0, totalInterest: 0, totalWithdrawal: 0, rawBalances: { USDT: 0 } };
+          }
 
-          // Fetch sub-documents for each user
           const profileDocRef = doc(db, `artifacts/${appId}/users/${userUid}/profile/data`);
           const balanceDocRef = doc(db, `artifacts/${appId}/users/${userUid}/balances`, 'current');
           const dashboardDocRef = doc(db, `artifacts/${appId}/users/${userUid}/dashboardData`, 'data');
 
-          console.log(`AdminDashboard: Fetching sub-documents for user ${userUid}: profile path: ${profileDocRef.path}, balance path: ${balanceDocRef.path}, dashboardData path: ${dashboardDocRef.path}`);
+          console.log(`AdminDashboard: Attempting to fetch sub-documents for user ${userUid}: profile path: ${profileDocRef.path}, balance path: ${balanceDocRef.path}, dashboardData path: ${dashboardDocRef.path}`);
 
           let profile = {};
           let balance = { USDT: 0 };
@@ -197,7 +201,7 @@ const AdminDashboard = () => {
             console.log(`AdminDashboard: Fetched data for user ${userUid}: Profile:`, profile, "Balance:", balance, "Dashboard:", dashboard);
 
           } catch (subDocError) {
-            console.error(`AdminDashboard: Error fetching sub-documents for user ${userUid}:`, subDocError);
+            console.error(`AdminDashboard: Error fetching sub-documents for user ${userUid}. This might indicate a missing Firebase Security Rule for a specific sub-collection (profile, balances, dashboardData) or an issue with the admin's custom claims. Error:`, subDocError);
             // Log the error but continue processing other users
           }
 
@@ -242,8 +246,8 @@ const AdminDashboard = () => {
         console.log("AdminDashboard: Stats updated:", { totalUsersCount, newUsersCount, activeUsersCount, totalInvestmentsSum, totalWithdrawalsSum });
         setDashboardLoading(false); // Data fetching complete
       }, (error) => {
-        console.error("AdminDashboard: Error fetching users:", error);
-        showMessage('error', 'Failed to load user data.');
+        console.error("AdminDashboard: Error fetching users (top-level collection or sub-documents). This likely indicates a missing Firebase Security Rule for the 'users' collection or its sub-documents, or an issue with the admin's custom claims. Error:", error);
+        showMessage('error', 'Failed to load user data. Check console for details.');
         setDashboardLoading(false); // Stop loading on error
       });
 
@@ -259,7 +263,7 @@ const AdminDashboard = () => {
       unsubscribePendingTransactions = onSnapshot(qPendingTransactions, async (snapshot) => {
         console.log("AdminDashboard: Pending transactions snapshot received. Number of pending docs:", snapshot.docs.length);
         if (snapshot.empty) {
-          console.log("AdminDashboard: Pending transactions collection group is empty. No pending transactions found.");
+          console.log("AdminDashboard: No pending transactions found.");
         }
         const pendingTxPromises = snapshot.docs.map(async (docSnap) => {
           const txData = docSnap.data();
@@ -268,8 +272,13 @@ const AdminDashboard = () => {
           const userIdFromPath = pathSegments[pathSegments.indexOf('users') + 1];
 
           // Fetch user profile data for email/name associated with the transaction
+          // Ensure appId is available before constructing path, though it should be due to dependencies
+          if (!appId) {
+            console.error(`AdminDashboard: App ID is undefined when fetching profile for transaction user ${userIdFromPath}.`);
+            return { id: docSnap.id, ref: docSnap.ref, userId: userIdFromPath, userEmail: 'N/A', userName: 'N/A', ...txData, timestamp: txData.timestamp ? txData.timestamp.toDate() : new Date() };
+          }
           const userProfileDocRef = doc(db, `artifacts/${appId}/users/${userIdFromPath}/profile/data`);
-          console.log(`AdminDashboard: Fetching profile for transaction user ${userIdFromPath} at path: ${userProfileDocRef.path}`);
+          console.log(`AdminDashboard: Attempting to fetch profile for transaction user ${userIdFromPath} at path: ${userProfileDocRef.path}`);
 
           let userProfileData = {};
           try {
@@ -277,7 +286,7 @@ const AdminDashboard = () => {
             userProfileData = userProfileSnap.exists() ? userProfileSnap.data() : {};
             console.log(`AdminDashboard: Profile data for transaction user ${userIdFromPath}: exists: ${userProfileSnap.exists()}, data:`, userProfileData);
           } catch (profileFetchError) {
-            console.error(`AdminDashboard: Error fetching profile for transaction user ${userIdFromPath}:`, profileFetchError);
+            console.error(`AdminDashboard: Error fetching profile for transaction user ${userIdFromPath}. This might indicate a missing Firebase Security Rule for the user's profile path or an issue with the admin's custom claims. Error:`, profileFetchError);
           }
 
           return {
@@ -296,8 +305,8 @@ const AdminDashboard = () => {
         setStats(prev => ({ ...prev, pendingApprovals: resolvedPendingTx.length }));
         console.log("AdminDashboard: Pending transactions data resolved and set:", resolvedPendingTx);
       }, (err) => {
-        console.error("AdminDashboard: Error fetching pending transactions:", err);
-        showMessage('error', "Failed to load pending transactions.");
+        console.error("AdminDashboard: Error fetching pending transactions. This likely indicates a missing Firebase Security Rule for the 'transactions' collection group or a missing composite index. Error:", err);
+        showMessage('error', "Failed to load pending transactions. Check console for details.");
       });
 
       return () => {
@@ -744,7 +753,7 @@ const AdminDashboard = () => {
                     <th className="table-header">Invested</th>
                     <th className="table-header">Withdrawn</th>
                     <th className="table-header">Joined</th>
-                    <th className="table-header">Role</th>
+                    <th className="table-header">Role</th> {/* Changed from "Admin" to "Role" */}
                     <th className="table-header text-right">Actions</th>
                   </tr>
                 </thead>
@@ -757,32 +766,36 @@ const AdminDashboard = () => {
                       <td className="table-cell">{formatCurrency(userItem.totalInvestment)}</td>
                       <td className="table-cell">{formatCurrency(userItem.totalWithdrawal)}</td>
                       <td className="table-cell">{formatDate(userItem.createdAt)}</td>
-                      <td className="table-cell">{userItem.isAdmin ? 'Admin' : 'User'}</td>
+                      <td className="table-cell">{userItem.isAdmin ? 'Admin' : 'User'}</td> {/* Display "Admin" or "User" */}
                       <td className="table-cell text-right">
                         <div className="flex justify-end space-x-2">
                           <button
                             onClick={() => handleEditUser(userItem)}
                             className="action-button bg-blue-600 hover:bg-blue-700"
+                            title="Edit User"
                           >
-                            <Edit3 className="w-4 h-4 mr-1" /> Edit
+                            <Edit3 className="w-4 h-4" /> Edit
                           </button>
                           <button
                             onClick={() => handleOpenAddDeductModal(userItem, 'add')}
                             className="action-button bg-green-600 hover:bg-green-700"
+                            title="Add Funds"
                           >
-                            <PlusCircle className="w-4 h-4 mr-1" /> Add Funds
+                            <PlusCircle className="w-4 h-4" /> Add Funds
                           </button>
                           <button
                             onClick={() => handleOpenAddDeductModal(userItem, 'deduct')}
                             className="action-button bg-yellow-600 hover:bg-yellow-700"
+                            title="Deduct Funds"
                           >
-                            <MinusCircle className="w-4 h-4 mr-1" /> Deduct Funds
+                            <MinusCircle className="w-4 h-4" /> Deduct Funds
                           </button>
                           <button
                             onClick={() => handleDeleteUser(userItem.id)}
                             className="action-button bg-red-600 hover:bg-red-700"
+                            title="Delete User"
                           >
-                            <Trash2 className="w-4 h-4 mr-1" /> Delete
+                            <Trash2 className="w-4 h-4" /> Delete
                           </button>
                         </div>
                       </td>
@@ -804,122 +817,128 @@ const AdminDashboard = () => {
         submitText="Save Changes"
         isSubmitting={isSubmitting}
       >
-        <div className="space-y-4">
-          <div>
-            <label htmlFor="editFullName" className="block text-sm font-medium text-gray-700">Full Name</label>
-            <input
-              type="text"
-              id="editFullName"
-              value={editingUser?.fullName || ''}
-              onChange={(e) => setEditingUser({ ...editingUser, fullName: e.target.value })}
-              className="input-field"
-            />
-          </div>
-          <div>
-            <label htmlFor="editUsername" className="block text-sm font-medium text-gray-700">Username</label>
-            <input
-              type="text"
-              id="editUsername"
-              value={editingUser?.username || ''}
-              onChange={(e) => setEditingUser({ ...editingUser, username: e.target.value })}
-              className="input-field"
-            />
-          </div>
-          <div>
-            <label htmlFor="editBalance" className="block text-sm font-medium text-gray-700">Balance (USDT)</label>
-            <input
-              type="number"
-              id="editBalance"
-              value={editingUser?.balance || 0}
-              onChange={(e) => setEditingUser({ ...editingUser, balance: parseFloat(e.target.value) })}
-              className="input-field"
-            />
-          </div>
-          <div>
-            <label htmlFor="editTotalInvestment" className="block text-sm font-medium text-gray-700">Total Investment</label>
-            <input
-              type="number"
-              id="editTotalInvestment"
-              value={editingUser?.totalInvestment || 0}
-              onChange={(e) => setEditingUser({ ...editingUser, totalInvestment: parseFloat(e.target.value) })}
-              className="input-field"
-            />
-          </div>
-          <div>
-            <label htmlFor="editTotalInterest" className="block text-sm font-medium text-gray-700">Total Interest Earned</label>
-            <input
-              type="number"
-              id="editTotalInterest"
-              value={editingUser?.totalInterest || 0}
-              onChange={(e) => setEditingUser({ ...editingUser, totalInterest: parseFloat(e.target.value) })}
-              className="input-field"
-            />
-          </div>
-          <div>
-            <label htmlFor="editTotalWithdrawal" className="block text-sm font-medium text-gray-700">Total Withdrawal</label>
-            <input
-              type="number"
-              id="editTotalWithdrawal"
-              value={editingUser?.totalWithdrawal || 0}
-              onChange={(e) => setEditingUser({ ...editingUser, totalWithdrawal: parseFloat(e.target.value) })}
-              className="input-field"
-            />
-          </div>
-          <div>
-            <label htmlFor="editIsAdmin" className="flex items-center text-sm font-medium text-gray-700">
+        {/* Added conditional rendering for editingUser to prevent errors if it's null initially */}
+        {editingUser && (
+          <form className="space-y-4">
+            <div>
+              <label htmlFor="editFullName" className="block text-sm font-medium text-gray-700">Full Name</label>
               <input
-                type="checkbox"
-                id="editIsAdmin"
-                checked={editingUser?.isAdmin || false}
-                onChange={(e) => setEditingUser({ ...editingUser, isAdmin: e.target.checked })}
-                className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded mr-2"
+                type="text"
+                id="editFullName"
+                className="mt-1 block w-full input-field"
+                value={editingUser.fullName || ''} // Added default empty string
+                onChange={(e) => setEditingUser({ ...editingUser, fullName: e.target.value })}
               />
-              Is Admin
-            </label>
-          </div>
-        </div>
+            </div>
+            <div>
+              <label htmlFor="editUsername" className="block text-sm font-medium text-gray-700">Username</label>
+              <input
+                type="text"
+                id="editUsername"
+                className="mt-1 block w-full input-field"
+                value={editingUser.username || ''} // Added default empty string
+                onChange={(e) => setEditingUser({ ...editingUser, username: e.target.value })}
+              />
+            </div>
+            <div>
+              <label htmlFor="editBalance" className="block text-sm font-medium text-gray-700">Current Balance (USDT)</label>
+              <input
+                type="number"
+                id="editBalance"
+                className="mt-1 block w-full input-field"
+                value={editingUser.balance}
+                onChange={(e) => setEditingUser({ ...editingUser, balance: parseFloat(e.target.value) || 0 })}
+              />
+            </div>
+            <div>
+              <label htmlFor="editTotalInvestment" className="block text-sm font-medium text-gray-700">Total Investment</label>
+              <input
+                type="number"
+                id="editTotalInvestment"
+                className="mt-1 block w-full input-field"
+                value={editingUser.totalInvestment}
+                onChange={(e) => setEditingUser({ ...editingUser, totalInvestment: parseFloat(e.target.value) || 0 })}
+              />
+            </div>
+            <div>
+              <label htmlFor="editTotalInterest" className="block text-sm font-medium text-gray-700">Total Interest</label>
+              <input
+                type="number"
+                id="editTotalInterest"
+                className="mt-1 block w-full input-field"
+                value={editingUser.totalInterest}
+                onChange={(e) => setEditingUser({ ...editingUser, totalInterest: parseFloat(e.target.value) || 0 })}
+              />
+            </div>
+            <div>
+              <label htmlFor="editTotalWithdrawal" className="block text-sm font-medium text-gray-700">Total Withdrawal</label>
+              <input
+                type="number"
+                id="editTotalWithdrawal"
+                className="mt-1 block w-full input-field"
+                value={editingUser.totalWithdrawal}
+                onChange={(e) => setEditingUser({ ...editingUser, totalWithdrawal: parseFloat(e.target.value) || 0 })}
+              />
+            </div>
+            <div className="flex items-center">
+              <input
+                id="editIsAdmin"
+                name="editIsAdmin"
+                type="checkbox"
+                className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                checked={editingUser.isAdmin}
+                onChange={(e) => setEditingUser({ ...editingUser, isAdmin: e.target.checked })}
+              />
+              <label htmlFor="editIsAdmin" className="ml-2 block text-sm text-gray-900">
+                Is Admin
+              </label>
+            </div>
+          </form>
+        )}
       </Modal>
 
       {/* Add/Deduct Funds Modal */}
       <Modal
         show={showAddDeductModal}
-        title={`${addDeductDetails.type === 'add' ? 'Add Funds to' : 'Deduct Funds from'} ${addDeductDetails.user?.email || ''}`}
+        title={`${addDeductDetails.type === 'add' ? 'Add Funds to' : 'Deduct Funds from'} ${addDeductDetails.user?.email || 'User'}`}
         onClose={() => setShowAddDeductModal(false)}
         onSubmit={handleAddDeductFunds}
         submitText={`${addDeductDetails.type === 'add' ? 'Add' : 'Deduct'} Funds`}
         isSubmitting={isSubmitting}
       >
-        <div className="space-y-4">
-          <div>
-            <label htmlFor="addDeductAmount" className="block text-sm font-medium text-gray-700">Amount</label>
-            <input
-              type="number"
-              id="addDeductAmount"
-              value={addDeductDetails.amount}
-              onChange={(e) => setAddDeductDetails(prev => ({ ...prev, amount: e.target.value }))}
-              className="input-field"
-              placeholder="e.g., 100.00"
-            />
-          </div>
-          <div>
-            <label htmlFor="addDeductDescription" className="block text-sm font-medium text-gray-700">Description (Optional)</label>
-            <textarea
-              id="addDeductDescription"
-              value={addDeductDetails.description}
-              onChange={(e) => setAddDeductDetails(prev => ({ ...prev, description: e.target.value }))}
-              rows="3"
-              className="input-field"
-              placeholder="Reason for this operation"
-            ></textarea>
-          </div>
-        </div>
+        {addDeductDetails.user && (
+          <form className="space-y-4">
+            <div>
+              <label htmlFor="amount" className="block text-sm font-medium text-gray-700">Amount (USDT)</label>
+              <input
+                type="number"
+                id="amount"
+                className="mt-1 block w-full input-field"
+                value={addDeductDetails.amount}
+                onChange={(e) => setAddDeductDetails({ ...addDeductDetails, amount: e.target.value })}
+                placeholder="e.g., 100.00"
+              />
+            </div>
+            <div>
+              <label htmlFor="description" className="block text-sm font-medium text-gray-700">Description (Optional)</label>
+              <textarea
+                id="description"
+                rows="3"
+                className="mt-1 block w-full input-field"
+                value={addDeductDetails.description}
+                onChange={(e) => setAddDeductDetails({ ...addDeductDetails, description: e.target.value })}
+                placeholder="Reason for this operation"
+              ></textarea>
+            </div>
+          </form>
+        )}
       </Modal>
 
-      {/* Confirmation Modal for Delete User */}
+      {/* Confirm Delete User Modal */}
       <ConfirmModal
         show={showConfirmDeleteModal}
         title="Confirm User Deletion"
-        message={`Are you sure you want to delete user ${userToDeleteId}? This action cannot be undone and will remove all their data.`}
+        message={`Are you sure you want to delete user with UID: ${userToDeleteId}? This action cannot be undone and will delete all associated data.`}
         onConfirm={confirmDeleteUser}
         onCancel={() => setShowConfirmDeleteModal(false)}
         isConfirming={isSubmitting}

@@ -10,7 +10,37 @@ import {
 import {
   getFirestore, setDoc, doc, Timestamp
 } from 'firebase/firestore';
-import './signup.css';
+import './signup.css'; // Assuming this CSS file exists for styling
+
+// Custom Modal Component for confirmations and messages
+const CustomModal = ({ message, onConfirm, onCancel, showConfirmButton = true }) => {
+  if (!message) return null;
+
+  return (
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full mx-4">
+        <p className="text-lg text-gray-800 mb-4">{message}</p>
+        <div className="flex justify-end space-x-3">
+          {showConfirmButton && (
+            <button
+              onClick={onConfirm}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+            >
+              Confirm
+            </button>
+          )}
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 
 function SignupPage() {
   const navigate = useNavigate();
@@ -29,6 +59,9 @@ function SignupPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [showVerificationMessage, setShowVerificationMessage] = useState(false);
+  const [welcomeMessage, setWelcomeMessage] = useState(''); // New state for welcome message
+  const [showLoginPromptModal, setShowLoginPromptModal] = useState(false); // State for custom modal
+  const [modalMessage, setModalMessage] = useState(''); // Message for the custom modal
 
   const dbRef = useRef(null);
   const authRef = useRef(null);
@@ -78,23 +111,22 @@ function SignupPage() {
 
   const validateForm = () => {
     const { firstName, lastName, username, email, password, confirmPassword } = formData;
-    if (!firstName.trim()) return setError('Please enter your first name.') || false;
-    if (!lastName.trim()) return setError('Please enter your last name.') || false;
-    if (!username.trim()) return setError('Please enter a username.') || false;
-    if (username.length < 3) return setError('Username must be at least 3 characters.') || false;
-    if (!email.trim()) return setError('Please enter your email.') || false;
+    if (!firstName.trim()) { setError('Please enter your first name.'); return false; }
+    if (!lastName.trim()) { setError('Please enter your last name.'); return false; }
+    if (!username.trim()) { setError('Please enter a username.'); return false; }
+    if (username.length < 3) { setError('Username must be at least 3 characters.'); return false; }
+    if (!email.trim()) { setError('Please enter your email.'); return false; }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) return setError('Please enter a valid email.') || false;
+    if (!emailRegex.test(email)) { setError('Please enter a valid email.'); return false; }
 
-    if (!password) return setError('Please enter a password.') || false;
-    if (password.length < 6) return setError('Password must be at least 6 characters.') || false;
-    if (password !== confirmPassword) return setError('Passwords do not match.') || false;
+    if (!password) { setError('Please enter a password.'); return false; }
+    if (password.length < 6) { setError('Password must be at least 6 characters.'); return false; }
+    if (password !== confirmPassword) { setError('Passwords do not match.'); return false; }
 
     return true;
   };
 
-  // 🔥 FIXED path here (profile/data to make 6 segments)
   const createUserProfileInFirestore = async (user, currentAppId) => {
     try {
       const userProfileDocRef = doc(
@@ -135,6 +167,36 @@ function SignupPage() {
     }
   };
 
+  const generateWelcomeMessage = async (firstName, username) => {
+    try {
+      const prompt = `Generate a warm and friendly welcome message for a new user who just signed up for our platform. Their first name is ${firstName} and their username is ${username}. Also, remind them to check their email for verification. Keep it concise, around 2-3 sentences.`;
+      let chatHistory = [];
+      chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+      const payload = { contents: chatHistory };
+      const apiKey = ""; // Leave this as-is; Canvas will provide it at runtime
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await response.json();
+      if (result.candidates && result.candidates.length > 0 &&
+        result.candidates[0].content && result.candidates[0].content.parts &&
+        result.candidates[0].content.parts.length > 0) {
+        return result.candidates[0].content.parts[0].text;
+      } else {
+        console.error("Gemini API: Unexpected response structure or no content.");
+        return "Welcome to our platform! Please check your email for verification.";
+      }
+    } catch (apiError) {
+      console.error("Error calling Gemini API:", apiError);
+      return "Welcome to our platform! Please check your email for verification.";
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
@@ -142,6 +204,7 @@ function SignupPage() {
     setLoading(true);
     setError('');
     setShowVerificationMessage(false);
+    setWelcomeMessage(''); // Clear previous welcome message
 
     try {
       const userCredential = await createUserWithEmailAndPassword(authRef.current, formData.email, formData.password);
@@ -163,12 +226,22 @@ function SignupPage() {
         role: profileResult.role, ...profileResult
       }));
 
+      // Generate welcome message
+      const generatedMsg = await generateWelcomeMessage(formData.firstName.trim(), formData.username.trim());
+      setWelcomeMessage(generatedMsg);
+
+      // Simulate sending welcome email
+      console.log(`Simulating welcome email sent to ${formData.email} with message: "${generatedMsg}"`);
+
       setFormData({
         firstName: '', lastName: '', username: '', email: '', password: '', confirmPassword: ''
       });
 
       setShowVerificationMessage(true);
-      navigate('/email-verification-pending');
+      // Navigate to email verification pending page after a short delay to show welcome message
+      setTimeout(() => {
+        navigate('/email-verification-pending');
+      }, 3000); // Show welcome message for 3 seconds
     } catch (err) {
       console.error('Signup error:', err);
       const errorMap = {
@@ -183,11 +256,8 @@ function SignupPage() {
       if (err.code && errorMap[err.code]) {
         setError(errorMap[err.code]);
         if (err.code === 'auth/email-already-in-use') {
-          setTimeout(() => {
-            if (window.confirm('Would you like to go to the login page instead?')) {
-              navigate('/login');
-            }
-          }, 3000);
+          setModalMessage('An account with this email already exists. Would you like to go to the login page instead?');
+          setShowLoginPromptModal(true);
         }
       } else {
         setError(err.message || 'Signup failed.');
@@ -195,6 +265,15 @@ function SignupPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleModalConfirm = () => {
+    setShowLoginPromptModal(false);
+    navigate('/login');
+  };
+
+  const handleModalCancel = () => {
+    setShowLoginPromptModal(false);
   };
 
   if (loading) {
@@ -208,9 +287,14 @@ function SignupPage() {
         <p>Join us and start your journey</p>
 
         {error && <div className="auth-error">{error}</div>}
-        {showVerificationMessage && <div className="auth-success">
-          ✅ A verification email was sent. Please check your inbox.
-        </div>}
+        {showVerificationMessage && (
+          <div className="auth-success">
+            <p>✅ A verification email was sent. Please check your inbox.</p>
+            {welcomeMessage && (
+              <p className="mt-2 text-blue-700 font-semibold">{welcomeMessage}</p>
+            )}
+          </div>
+        )}
 
         {!showVerificationMessage && (
           <form onSubmit={handleSubmit} className="auth-form" noValidate>
@@ -238,6 +322,13 @@ function SignupPage() {
           Already have an account? <Link to="/login">Login</Link>
         </p>
       </div>
+
+      <CustomModal
+        message={modalMessage}
+        onConfirm={handleModalConfirm}
+        onCancel={handleModalCancel}
+        showConfirmButton={true}
+      />
     </main>
   );
 }

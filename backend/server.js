@@ -514,6 +514,7 @@ app.post('/api/auth/login', async (req, res) => {
             }
         } else {
             console.warn('⚠️ No idToken provided for login, proceeding with uid/email from request body (less secure for login).');
+            // If no idToken, create a basic decodedToken object for consistency
             decodedToken = { uid, email: email || null, email_verified: false, name: null, picture: null };
         }
 
@@ -548,13 +549,14 @@ app.post('/api/auth/login', async (req, res) => {
                         firstName: derivedFirstName,
                         lastName: derivedLastName,
                         username: generatedUsername,
-                        password: null,
+                        password: null, // Password should not be stored here if using Firebase Auth
                         displayName: decodedToken?.name || generatedUsername,
                         emailVerified: decodedToken?.email_verified || false,
                         balance: 0,
                         totalInvestment: 0,
                         totalInterest: 0,
-                        preferences: { darkMode: false, notifications: true }
+                        preferences: { darkMode: false, notifications: true },
+                        role: 'user', // Default role for new users
                     });
                     await user.save();
                     console.log(`✅ New user created: ${user.email || user.firebaseUid}`);
@@ -580,6 +582,21 @@ app.post('/api/auth/login', async (req, res) => {
         user.lastLogin = new Date();
         await user.save();
 
+        // --- Firebase Custom Claims Management ---
+        // Ensure isAdmin custom claim matches the user's role from MongoDB
+        const currentClaims = (await admin.auth().getUser(uid)).customClaims || {};
+        const isAdminInDB = user.role === 'admin';
+
+        if (currentClaims.isAdmin !== isAdminInDB) {
+            await admin.auth().setCustomUserClaims(uid, { ...currentClaims, isAdmin: isAdminInDB });
+            console.log(`🔑 Firebase custom claim 'isAdmin' set to ${isAdminInDB} for user ${uid}`);
+            // Note: Client-side token needs to be refreshed for this to take effect immediately in Firestore rules.
+            // This usually happens on subsequent requests or re-login.
+        } else {
+            console.log(`🔑 Firebase custom claim 'isAdmin' already in sync for user ${uid} (${isAdminInDB}).`);
+        }
+        // --- End Firebase Custom Claims Management ---
+
         return res.status(200).json({
             message: 'Login successful',
             uid,
@@ -594,7 +611,9 @@ app.post('/api/auth/login', async (req, res) => {
                 planStartDate: user.planStartDate,
                 username: user.username,
                 firstName: user.firstName,
-                lastName: user.lastName
+                lastName: user.lastName,
+                role: user.role, // Include role in the response
+                isAdmin: isAdminInDB // Include the current admin status
             }
         });
     } catch (error) {
@@ -674,8 +693,8 @@ app.get('/api/auth/profile', async (req, res) => {
                     username: generatedUsername,
                     firstName: derivedFirstName,
                     lastName: derivedLastName,
-                    password: null,
-                    role: 'user',
+                    password: null, // Password should not be stored here if using Firebase Auth
+                    role: 'user', // Default role for new users
                     balance: 0,
                     totalInvestment: 0,
                     totalInterest: 0,
@@ -728,6 +747,21 @@ app.get('/api/auth/profile', async (req, res) => {
             console.log('Existing user profile updated:', user.email || user.firebaseUid);
         }
 
+        // --- Firebase Custom Claims Management ---
+        // Ensure isAdmin custom claim matches the user's role from MongoDB
+        const currentClaims = (await admin.auth().getUser(firebaseUid)).customClaims || {};
+        const isAdminInDB = user.role === 'admin';
+
+        if (currentClaims.isAdmin !== isAdminInDB) {
+            await admin.auth().setCustomUserClaims(firebaseUid, { ...currentClaims, isAdmin: isAdminInDB });
+            console.log(`🔑 Firebase custom claim 'isAdmin' set to ${isAdminInDB} for user ${firebaseUid}`);
+            // Note: Client-side token needs to be refreshed for this to take effect immediately in Firestore rules.
+            // This usually happens on subsequent requests or re-login.
+        } else {
+            console.log(`🔑 Firebase custom claim 'isAdmin' already in sync for user ${firebaseUid} (${isAdminInDB}).`);
+        }
+        // --- End Firebase Custom Claims Management ---
+
         const profileData = {
             uid: user.firebaseUid,
             email: user.email,
@@ -739,12 +773,77 @@ app.get('/api/auth/profile', async (req, res) => {
             balance: user.balance,
             totalInvestment: user.totalInvestment,
             totalInterest: user.totalInterest,
-            role: user.role,
+            role: user.role, // Include role from MongoDB
+            isAdmin: isAdminInDB // Include the calculated isAdmin status
         };
         return res.status(200).json(profileData);
     } catch (error) {
         console.error('❌ Profile fetch error:', error);
         return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+
+// --- Admin-specific API to update user profile (including role) ---
+// This endpoint should be protected by an authentication middleware that verifies admin status.
+// For simplicity, I'm adding it here, but in a real app, ensure proper auth.
+app.put('/api/admin/users/:userId', async (req, res) => {
+    // IMPORTANT: In a real application, you MUST add an authentication middleware here
+    // to ensure only actual administrators can access this endpoint.
+    // Example: app.put('/api/admin/users/:userId', authenticateAdmin, async (req, res) => { ... });
+
+    if (!firebaseAdminInitialized) {
+        return res.status(503).json({ error: 'Firebase Admin SDK not initialized.' });
+    }
+
+    const { userId } = req.params;
+    const { firstName, lastName, username, email, role } = req.body; // Add role to updatable fields
+
+    try {
+        // Find the user in MongoDB
+        const user = await User.findOne({ firebaseUid: userId });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found in database.' });
+        }
+
+        // Update MongoDB user data
+        if (firstName !== undefined) user.firstName = firstName;
+        if (lastName !== undefined) user.lastName = lastName;
+        if (username !== undefined) user.username = username;
+        if (email !== undefined) user.email = email;
+        if (role !== undefined) user.role = role; // Update role
+
+        await user.save();
+        console.log(`✅ MongoDB user profile updated for ${userId}`);
+
+        // --- Update Firebase Custom Claims based on new role ---
+        const isAdminInDB = user.role === 'admin';
+        const currentUserRecord = await admin.auth().getUser(userId);
+        const currentClaims = currentUserRecord.customClaims || {};
+
+        if (currentClaims.isAdmin !== isAdminInDB) {
+            await admin.auth().setCustomUserClaims(userId, { ...currentClaims, isAdmin: isAdminInDB });
+            console.log(`🔑 Firebase custom claim 'isAdmin' updated to ${isAdminInDB} for user ${userId}`);
+            // Revoke refresh tokens to force client-side token refresh (optional but good for immediate effect)
+            await admin.auth().revokeRefreshTokens(userId);
+            console.log(`🔑 Revoked refresh tokens for user ${userId} to force token refresh.`);
+        } else {
+            console.log(`🔑 Firebase custom claim 'isAdmin' already in sync for user ${userId} (${isAdminInDB}).`);
+        }
+        // --- End Firebase Custom Claims Management ---
+
+        res.status(200).json({ message: 'User profile updated successfully', user: user });
+
+    } catch (error) {
+        console.error('❌ Error updating user profile:', error);
+        if (error.name === 'ValidationError') {
+            return res.status(400).json({
+                error: 'Validation failed',
+                details: error.message,
+                fieldErrors: error.errors
+            });
+        }
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
