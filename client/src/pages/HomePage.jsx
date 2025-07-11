@@ -7,6 +7,19 @@ import {
   ArrowUp, ArrowDown, Star, Quote, CheckCircle, Lightbulb, TrendingDown
 } from 'lucide-react';
 
+// === FIX: Define cryptoData here ===
+const cryptoData = [
+  { name: 'Bitcoin', symbol: 'BTC', price: 65000.00, change: 2.5 },
+  { name: 'Ethereum', symbol: 'ETH', price: 3400.00, change: -1.2 },
+  { name: 'Ripple', symbol: 'XRP', price: 0.52, change: 0.8 },
+  { name: 'Litecoin', symbol: 'LTC', price: 75.00, change: 1.5 },
+  { name: 'Cardano', symbol: 'ADA', price: 0.40, change: -0.5 },
+  { name: 'Solana', symbol: 'SOL', price: 150.00, change: 3.1 },
+  { name: 'Dogecoin', symbol: 'DOGE', price: 0.12, change: 0.9 },
+  { name: 'Chainlink', symbol: 'LINK', price: 15.00, change: -0.7 },
+];
+// ===================================
+
 // Investment plans data
 const investmentPlans = [
   {
