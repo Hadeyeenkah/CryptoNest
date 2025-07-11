@@ -32,6 +32,11 @@ app.use(cors(corsOptions));
 // Parse JSON and URL-encoded data with a limit
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Serve static files from the 'client/dist' directory.
+// This middleware should be placed before your API routes IF your API routes
+// do not start with a distinct prefix (like '/api').
+// However, with '/api' prefix, its placement relative to API routes is less critical.
 app.use(express.static(path.join(__dirname, 'client', 'dist')));
 
 
@@ -896,6 +901,7 @@ app.get('*', (req, res) => {
 });
 // 👇 Catch-all route to serve React app
 app.get('*', (req, res) => {
+    console.log(`Serving index.html for route: ${req.url}`);
   res.sendFile(path.join(__dirname, 'client', 'dist', 'index.html'));
 });
 
