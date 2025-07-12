@@ -1,0 +1,10 @@
+# .render.yaml
+services:
+  - type: static
+    name: cryptonest-frontend
+    rootDir: client
+    buildCommand: npm run build
+    publishPath: dist
+    redirects:
+      - source: "/*"
+        destination: "/index.html"
