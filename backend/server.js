@@ -1,5 +1,6 @@
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '.env') });
+const fs = require('fs'); // Required for file system checks
 
 const express = require('express');
 const cors = require('cors');
@@ -61,7 +62,6 @@ const initializeFirebase = () => {
         // Resolve path to Firebase service account key
         const serviceAccountPath = path.resolve(__dirname, './config/firebase-service-account.json');
 
-        const fs = require('fs'); // Require fs here to keep it scoped
         // Check if the service account file exists
         if (!fs.existsSync(serviceAccountPath)) {
             throw new Error(`Service account file not found at: ${serviceAccountPath}`);
@@ -396,9 +396,9 @@ console.log('⏰ Daily interest calculation scheduled for 00:00 UTC.');
 
 
 // --- API ROUTES ---
-// IMPORTANT: All API routes MUST be defined BEFORE the static file serving middleware.
-// This ensures that API requests are handled by your backend logic first,
-// and don't accidentally fall through to serving the frontend's index.html.
+// IMPORTANT: All API routes MUST be defined BEFORE any static file serving middleware
+// that might catch API paths, and before the catch-all route for the SPA.
+// This ensures that API requests are handled by your backend logic first.
 
 // Mount your imported API routes
 app.use('/api/deposits', depositRoutes);
@@ -850,7 +850,7 @@ app.put('/api/admin/users/:userId', async (req, res) => {
 
 
 // -----------------------------------------------------------------------------------------------------------------------------------
-// IMPORTANT: SERVE REACT APP STATIC FILES BELOW ALL YOUR API ROUTES
+// IMPORTANT: SERVE REACT APP STATIC FILES AND CATCH-ALL ROUTE BELOW ALL YOUR API ROUTES
 // -----------------------------------------------------------------------------------------------------------------------------------
 
 // Determine the path to your frontend build directory
@@ -865,6 +865,16 @@ const frontendBuildPath = path.join(__dirname, 'client', 'dist');
 
 // Log the path to verify during deployment (check Render logs)
 console.log(`Serving static files from: ${frontendBuildPath}`);
+
+// Add a startup check for index.html existence
+// This will log a warning if the main frontend file is not found at startup
+if (!fs.existsSync(frontendBuildPath) || !fs.existsSync(path.join(frontendBuildPath, 'index.html'))) {
+    console.warn(`🚨 WARNING: Frontend build directory or index.html not found at startup: ${frontendBuildPath}. This will likely result in blank pages.`);
+    console.warn(`Please ensure your frontend build command (e.g., 'npm run build') is correctly configured in Render and creates 'client/dist'.`);
+} else {
+    console.log(`✅ Frontend build directory and index.html found at: ${frontendBuildPath}`);
+}
+
 
 // Serve static files from the React build directory
 // This middleware will try to match incoming requests to files in the 'dist' folder.
