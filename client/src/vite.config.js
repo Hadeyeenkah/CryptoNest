@@ -3,13 +3,11 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
+  root: 'client',           // 👈 your index.html is in /client
   plugins: [react()],
   build: {
-    chunkSizeWarningLimit: 1500, // increases warning limit to 1.5MB
-  },
-  server: {
-    proxy: {
-      '/api': 'http://localhost:5173'
-    }
+    outDir: '../dist',       // 👈 build output to /dist
+    emptyOutDir: true,
+    chunkSizeWarningLimit: 1500
   }
 })

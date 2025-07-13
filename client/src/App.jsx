@@ -12,6 +12,7 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import Navbar from "./components/Navbar";
 
 import "./assets/styles/main.css";
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import "./App.css";
 
 // === Lazy loaded pages for better performance ===
