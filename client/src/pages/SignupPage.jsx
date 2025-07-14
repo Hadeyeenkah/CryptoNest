@@ -10,6 +10,7 @@ import {
 import {
   getFirestore, setDoc, doc, Timestamp
 } from 'firebase/firestore';
+import emailjs from '@emailjs/browser'; // Add this import
 import './signup.css'; // Assuming this CSS file exists for styling
 
 // Custom Modal Component for confirmations and messages
@@ -41,7 +42,6 @@ const CustomModal = ({ message, onConfirm, onCancel, showConfirmButton = true })
   );
 };
 
-
 function SignupPage() {
   const navigate = useNavigate();
 
@@ -59,12 +59,20 @@ function SignupPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [showVerificationMessage, setShowVerificationMessage] = useState(false);
-  const [welcomeMessage, setWelcomeMessage] = useState(''); // New state for welcome message
-  const [showLoginPromptModal, setShowLoginPromptModal] = useState(false); // State for custom modal
-  const [modalMessage, setModalMessage] = useState(''); // Message for the custom modal
+  const [welcomeMessage, setWelcomeMessage] = useState('');
+  const [showLoginPromptModal, setShowLoginPromptModal] = useState(false);
+  const [modalMessage, setModalMessage] = useState('');
+  const [emailSendingStatus, setEmailSendingStatus] = useState(''); // New state for email status
 
   const dbRef = useRef(null);
   const authRef = useRef(null);
+
+  // EmailJS Configuration - Replace with your actual EmailJS credentials
+  const EMAILJS_CONFIG = {
+    serviceId: 'service_abc123', // Example: service_abc123 (get from EmailJS dashboard)
+    templateId: 'template_xyz789', // Example: template_xyz789 (get from EmailJS dashboard)
+    publicKey: 'user_def456ghi789' // Example: user_def456ghi789 (get from EmailJS dashboard)
+  };
 
   // Firebase Initialization
   useEffect(() => {
@@ -73,6 +81,9 @@ function SignupPage() {
     const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
 
     setAppId(currentAppId);
+
+    // Initialize EmailJS
+    emailjs.init(EMAILJS_CONFIG.publicKey);
 
     let appInstance;
     if (getApps().length === 0) {
@@ -189,11 +200,75 @@ function SignupPage() {
         return result.candidates[0].content.parts[0].text;
       } else {
         console.error("Gemini API: Unexpected response structure or no content.");
-        return "Welcome to our platform! Please check your email for verification.";
+        return `Welcome to our platform, ${firstName}! Your username ${username} is now active. Please check your email for verification.`;
       }
     } catch (apiError) {
       console.error("Error calling Gemini API:", apiError);
-      return "Welcome to our platform! Please check your email for verification.";
+      return `Welcome to our platform, ${firstName}! Your username ${username} is now active. Please check your email for verification.`;
+    }
+  };
+
+  // New function to send welcome email using EmailJS
+  const sendWelcomeEmail = async (userEmail, firstName, username, welcomeMessage) => {
+    try {
+      setEmailSendingStatus('Sending welcome email...');
+      
+      const templateParams = {
+        to_email: userEmail,
+        to_name: firstName,
+        username: username,
+        welcome_message: welcomeMessage,
+        platform_name: 'Your Platform Name', // Replace with your platform name
+        support_email: 'support@yourplatform.com', // Replace with your support email
+        login_url: window.location.origin + '/login',
+        verification_reminder: 'Please check your email for a verification link to complete your account setup.'
+      };
+
+      const response = await emailjs.send(
+        EMAILJS_CONFIG.serviceId,
+        EMAILJS_CONFIG.templateId,
+        templateParams
+      );
+
+      console.log('Welcome email sent successfully:', response.status, response.text);
+      setEmailSendingStatus('Welcome email sent successfully! ✅');
+      return true;
+    } catch (error) {
+      console.error('Failed to send welcome email:', error);
+      setEmailSendingStatus('Failed to send welcome email. Please contact support if needed.');
+      return false;
+    }
+  };
+
+  // Alternative function using a backend API (if you prefer server-side email sending)
+  const sendWelcomeEmailViaAPI = async (userEmail, firstName, username, welcomeMessage) => {
+    try {
+      setEmailSendingStatus('Sending welcome email...');
+      
+      const response = await fetch('/api/send-welcome-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: userEmail,
+          firstName: firstName,
+          username: username,
+          welcomeMessage: welcomeMessage
+        })
+      });
+
+      if (response.ok) {
+        console.log('Welcome email sent successfully via API');
+        setEmailSendingStatus('Welcome email sent successfully! ✅');
+        return true;
+      } else {
+        throw new Error('Failed to send email via API');
+      }
+    } catch (error) {
+      console.error('Failed to send welcome email via API:', error);
+      setEmailSendingStatus('Failed to send welcome email. Please contact support if needed.');
+      return false;
     }
   };
 
@@ -204,7 +279,8 @@ function SignupPage() {
     setLoading(true);
     setError('');
     setShowVerificationMessage(false);
-    setWelcomeMessage(''); // Clear previous welcome message
+    setWelcomeMessage('');
+    setEmailSendingStatus('');
 
     try {
       const userCredential = await createUserWithEmailAndPassword(authRef.current, formData.email, formData.password);
@@ -230,18 +306,32 @@ function SignupPage() {
       const generatedMsg = await generateWelcomeMessage(formData.firstName.trim(), formData.username.trim());
       setWelcomeMessage(generatedMsg);
 
-      // Simulate sending welcome email
-      console.log(`Simulating welcome email sent to ${formData.email} with message: "${generatedMsg}"`);
+      // Send actual welcome email (choose one method)
+      await sendWelcomeEmail(
+        formData.email,
+        formData.firstName.trim(),
+        formData.username.trim(),
+        generatedMsg
+      );
+
+      // Alternative: Use backend API instead
+      // await sendWelcomeEmailViaAPI(
+      //   formData.email,
+      //   formData.firstName.trim(),
+      //   formData.username.trim(),
+      //   generatedMsg
+      // );
 
       setFormData({
         firstName: '', lastName: '', username: '', email: '', password: '', confirmPassword: ''
       });
 
       setShowVerificationMessage(true);
-      // Navigate to email verification pending page after a short delay to show welcome message
+      
+      // Navigate to email verification pending page after showing welcome message
       setTimeout(() => {
         navigate('/email-verification-pending');
-      }, 3000); // Show welcome message for 3 seconds
+      }, 4000); // Increased to 4 seconds to show email status
     } catch (err) {
       console.error('Signup error:', err);
       const errorMap = {
@@ -292,6 +382,9 @@ function SignupPage() {
             <p>✅ A verification email was sent. Please check your inbox.</p>
             {welcomeMessage && (
               <p className="mt-2 text-blue-700 font-semibold">{welcomeMessage}</p>
+            )}
+            {emailSendingStatus && (
+              <p className="mt-2 text-green-600 text-sm">{emailSendingStatus}</p>
             )}
           </div>
         )}
