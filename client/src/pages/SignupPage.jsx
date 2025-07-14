@@ -67,12 +67,26 @@ function SignupPage() {
   const dbRef = useRef(null);
   const authRef = useRef(null);
 
-  // EmailJS Configuration - Replace with your actual EmailJS credentials
+  // EmailJS Configuration - Using environment variables for security
   const EMAILJS_CONFIG = {
-    serviceId: 'service_abc123', // Example: service_abc123 (get from EmailJS dashboard)
-    templateId: 'template_xyz789', // Example: template_xyz789 (get from EmailJS dashboard)
-    publicKey: 'user_def456ghi789' // Example: user_def456ghi789 (get from EmailJS dashboard)
+    serviceId: process.env.REACT_APP_EMAILJS_SERVICE_ID || 'service_fsc9y3b',
+    templateId: process.env.REACT_APP_EMAILJS_TEMPLATE_ID || 'template_62mg19p',
+    publicKey: process.env.REACT_APP_EMAILJS_PUBLIC_KEY || 'T_KOAe7VGjHx7iQUY'
   };
+
+  // Debug: Log configuration on component mount
+  useEffect(() => {
+    console.log('EmailJS Configuration Check:', {
+      serviceId: EMAILJS_CONFIG.serviceId,
+      templateId: EMAILJS_CONFIG.templateId,
+      publicKey: EMAILJS_CONFIG.publicKey,
+      envVars: {
+        serviceId: process.env.REACT_APP_EMAILJS_SERVICE_ID,
+        templateId: process.env.REACT_APP_EMAILJS_TEMPLATE_ID,
+        publicKey: process.env.REACT_APP_EMAILJS_PUBLIC_KEY
+      }
+    });
+  }, []);
 
   // Firebase Initialization
   useEffect(() => {
@@ -82,8 +96,14 @@ function SignupPage() {
 
     setAppId(currentAppId);
 
-    // Initialize EmailJS
-    emailjs.init(EMAILJS_CONFIG.publicKey);
+    // Initialize EmailJS with more detailed logging
+    try {
+      console.log('Initializing EmailJS with public key:', EMAILJS_CONFIG.publicKey);
+      emailjs.init(EMAILJS_CONFIG.publicKey);
+      console.log('EmailJS initialized successfully');
+    } catch (emailjsError) {
+      console.error('EmailJS initialization failed:', emailjsError);
+    }
 
     let appInstance;
     if (getApps().length === 0) {
@@ -213,6 +233,22 @@ function SignupPage() {
     try {
       setEmailSendingStatus('Sending welcome email...');
       
+      // Debug: Log configuration
+      console.log('EmailJS Config:', {
+        serviceId: EMAILJS_CONFIG.serviceId,
+        templateId: EMAILJS_CONFIG.templateId,
+        publicKey: EMAILJS_CONFIG.publicKey ? 'Present' : 'Missing'
+      });
+
+      // Check if EmailJS is properly configured
+      if (!EMAILJS_CONFIG.serviceId || !EMAILJS_CONFIG.templateId || !EMAILJS_CONFIG.publicKey) {
+        throw new Error('EmailJS configuration is incomplete. Please check your environment variables.');
+      }
+
+      if (EMAILJS_CONFIG.serviceId.includes('your_') || EMAILJS_CONFIG.templateId.includes('your_')) {
+        throw new Error('Please update your EmailJS configuration with real values from your EmailJS dashboard.');
+      }
+      
       const templateParams = {
         to_email: userEmail,
         to_name: firstName,
@@ -223,6 +259,9 @@ function SignupPage() {
         login_url: window.location.origin + '/login',
         verification_reminder: 'Please check your email for a verification link to complete your account setup.'
       };
+
+      // Debug: Log template parameters
+      console.log('Template Parameters:', templateParams);
 
       const response = await emailjs.send(
         EMAILJS_CONFIG.serviceId,
@@ -235,8 +274,60 @@ function SignupPage() {
       return true;
     } catch (error) {
       console.error('Failed to send welcome email:', error);
-      setEmailSendingStatus('Failed to send welcome email. Please contact support if needed.');
+      
+      // More detailed error messages
+      let errorMessage = 'Failed to send welcome email. ';
+      if (error.message.includes('configuration')) {
+        errorMessage += 'Configuration error.';
+      } else if (error.status === 400) {
+        errorMessage += 'Invalid template or service ID.';
+      } else if (error.status === 401) {
+        errorMessage += 'Authentication failed. Check your public key.';
+      } else if (error.status === 403) {
+        errorMessage += 'Access denied. Check your EmailJS settings.';
+      } else if (error.status === 429) {
+        errorMessage += 'Rate limit exceeded. Try again later.';
+      } else {
+        errorMessage += 'Please contact support if needed.';
+      }
+      
+      setEmailSendingStatus(errorMessage);
       return false;
+    }
+  };
+
+  // Test function to verify EmailJS setup
+  const testEmailJS = async () => {
+    try {
+      console.log('Testing EmailJS configuration...');
+      setEmailSendingStatus('Testing EmailJS...');
+      
+      const testParams = {
+        to_email: 'your_email@example.com', // Replace with your actual email for testing
+        to_name: 'Test User',
+        username: 'testuser',
+        welcome_message: 'This is a test welcome message from your signup page!',
+        platform_name: 'Your Platform Name',
+        support_email: 'support@yourplatform.com',
+        login_url: window.location.origin + '/login',
+        verification_reminder: 'This is a test verification reminder'
+      };
+
+      console.log('Test parameters:', testParams);
+
+      const response = await emailjs.send(
+        EMAILJS_CONFIG.serviceId,
+        EMAILJS_CONFIG.templateId,
+        testParams
+      );
+
+      console.log('Test email result:', response);
+      setEmailSendingStatus('Test email sent successfully! ✅ Check your inbox.');
+      alert('Test email sent successfully! Check your inbox.');
+    } catch (error) {
+      console.error('Test email failed:', error);
+      setEmailSendingStatus('Test email failed: ' + error.message);
+      alert('Test email failed: ' + error.message);
     }
   };
 
@@ -414,6 +505,17 @@ function SignupPage() {
         <p className="auth-switch">
           Already have an account? <Link to="/login">Login</Link>
         </p>
+        
+        {/* Debug: Test EmailJS button - Remove in production */}
+        {process.env.NODE_ENV === 'development' && (
+          <button 
+            type="button" 
+            onClick={testEmailJS}
+            className="mt-4 px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
+          >
+            Test EmailJS (Debug)
+          </button>
+        )}
       </div>
 
       <CustomModal
