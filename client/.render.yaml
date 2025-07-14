@@ -1,9 +1,10 @@
 services:
-  - type: static
+  - type: web
     name: cryptonest-frontend
-    rootDir: client
-    buildCommand: npm run build
-    publishPath: dist
-    redirects:
-      - source: "/*"
-        destination: "/index.html"
+    env: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
