@@ -9,6 +9,9 @@ body {
   line-height: 1.6;
 }
 
+input, textarea, select {
+  font-size: 16px
+  }
 /* Center the signup page */
 .auth-page {
   display: flex;
