@@ -22,7 +22,7 @@ const WithdrawalPage = React.lazy(() => import("./pages/WithdrawalPage"));
 const LoginPage = React.lazy(() => import("./pages/LoginPage"));
 const SignupPage = React.lazy(() => import("./pages/SignupPage"));
 const DashboardPage = React.lazy(() => import("./pages/DashboardPage"));
-const AdminDashboard = React.lazy(() => import("./pages/AdminDashboard"));
+const AdminDashboard = React.lazy(() => import("./components/AdminDashboard"));
 const TwoFactorAuthPage = React.lazy(() => import("./pages/TwoFactorAuthPage")); // New 2FA Page
 const ProfileSettingsPage = React.lazy(() => import("./pages/ProfileSettingsPage.jsx")); // NEW: Import ProfileSettingsPage
 const ForgotPasswordPage = React.lazy(() => import("./pages/ForgotPasswordPage.jsx")); // NEW: Import ForgotPasswordPage

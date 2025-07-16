@@ -16,12 +16,14 @@ import {
 import {
   doc,
   onSnapshot,
-  getDoc as firestoreGetDoc,
+  getDoc, // Changed from firestoreGetDoc to getDoc
   setDoc,
   serverTimestamp
 } from "firebase/firestore";
 
-import { auth as firebaseAuth, firestore as firebaseDb } from "../firebase";
+import { auth as firebaseAuth, db as firebaseDb } from "../firebase"; // Changed firestore as firebaseDb to db as firebaseDb
+// The line below is redundant as db is imported from ../firebase above
+// import { db } from '../firebase.js';
 
 
 // Helper function to ensure the user's profile document exists and is populated
@@ -34,7 +36,7 @@ const ensureUserDocumentExists = async (firebaseUser, dbInstance, currentAppId) 
   const userProfileDocRef = doc(dbInstance, `artifacts/${currentAppId}/users/${firebaseUser.uid}/profile`, 'data');
 
   try {
-    const docSnap = await firestoreGetDoc(userProfileDocRef);
+    const docSnap = await getDoc(userProfileDocRef); // Changed firestoreGetDoc to getDoc
 
     let calculatedDisplayName = 'New User';
     let calculatedFullName = 'New User';
@@ -67,7 +69,7 @@ const ensureUserDocumentExists = async (firebaseUser, dbInstance, currentAppId) 
         usdtWallet: null,
       };
       await setDoc(userProfileDocRef, newUserData);
-      const newDocSnap = await firestoreGetDoc(userProfileDocRef);
+      const newDocSnap = await getDoc(userProfileDocRef); // Changed firestoreGetDoc to getDoc
       return newDocSnap.exists() ? newDocSnap.data() : null;
     } else {
       const existingProfileData = docSnap.data();
@@ -104,7 +106,7 @@ const ensureUserDocumentExists = async (firebaseUser, dbInstance, currentAppId) 
       if (needsUpdate) {
         updateData.updatedAt = serverTimestamp();
         await setDoc(userProfileDocRef, updateData, { merge: true });
-        const newDocSnap = await firestoreGetDoc(userProfileDocRef);
+        const newDocSnap = await getDoc(userProfileDocRef); // Changed firestoreGetDoc to getDoc
         return newDocSnap.exists() ? newDocSnap.data() : null;
       }
 
