@@ -10,12 +10,13 @@ import { doc, onSnapshot } from "firebase/firestore"; // Import Firestore functi
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 
 import Navbar from "./components/Navbar";
+import SupportPage from './pages/SupportPage'; // General user Support Page
 
 import "./assets/styles/main.css";
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+// import { BrowserRouter, Routes, Route } from 'react-router-dom' // ❌ Remove these, createBrowserRouter is used
 import "./App.css";
 
-// === Lazy loaded pages for better performance ===
+// --- Lazy loaded pages for better performance ---
 const HomePage = React.lazy(() => import("./pages/HomePage"));
 const DepositPage = React.lazy(() => import("./pages/DepositPage"));
 const WithdrawalPage = React.lazy(() => import("./pages/WithdrawalPage"));
@@ -23,11 +24,12 @@ const LoginPage = React.lazy(() => import("./pages/LoginPage"));
 const SignupPage = React.lazy(() => import("./pages/SignupPage"));
 const DashboardPage = React.lazy(() => import("./pages/DashboardPage"));
 const AdminDashboard = React.lazy(() => import("./components/AdminDashboard"));
+const AdminChatComponent = React.lazy(() => import("./components/AdminChatComponent.jsx")); // ✅ NEW: Import AdminChatComponent
 const TwoFactorAuthPage = React.lazy(() => import("./pages/TwoFactorAuthPage")); // New 2FA Page
 const ProfileSettingsPage = React.lazy(() => import("./pages/ProfileSettingsPage.jsx")); // NEW: Import ProfileSettingsPage
 const ForgotPasswordPage = React.lazy(() => import("./pages/ForgotPasswordPage.jsx")); // NEW: Import ForgotPasswordPage
 
-// === Layouts ===
+// --- Layouts ---
 const LayoutWithNavbar = () => (
   <>
     <Navbar />
@@ -43,7 +45,7 @@ const LayoutWithoutNavbar = () => (
   </main>
 );
 
-// === Route Guards ===
+// --- Route Guards ---
 const Loading = () => (
   <div style={{
     display: 'flex',
@@ -100,21 +102,6 @@ const TwoFARoute = () => {
         return;
     }
 
-    // This listener is primarily for checking if a user *needs* to complete 2FA verification
-    // if they have 2FA enabled but haven't completed the current session's verification
-    // (e.g., if you implement session-based 2FA prompts).
-    // For the current email-link 2FA, `pendingEmailVerification` from AuthContext is more direct.
-    // However, if you want to force re-verification on every login, this logic could be adapted.
-
-    // For now, if 2FA is enabled, and there's no pending email verification,
-    // we assume they are either already verified or need to be redirected to the 2FA page
-    // if a session token for 2FA verification isn't present (which Firebase handles internally).
-    // The `is2FAEnabled` flag from `userProfile` is the primary indicator.
-
-    // If you plan to implement session-based 2FA (e.g., after a successful password login,
-    // if 2FA is enabled, redirect to a page that *then* sends an email link for that session),
-    // this `useEffect` would be crucial. For now, `is2FAEnabled` from `userProfile` is key.
-
     setChecking2FA(false); // Assume no further checks needed if not pending or not enabled
   }, [isAuthenticated, authChecked, userId, db, appId, is2FAEnabled, pendingEmailVerification]);
 
@@ -123,9 +110,6 @@ const TwoFARoute = () => {
   }
 
   // If 2FA is enabled and there's a pending email verification (meaning the link was sent but not clicked yet)
-  // or if 2FA is enabled and the user is not yet fully verified for the current session (future enhancement)
-  // then redirect to the 2FA verification page.
-  // For the current implementation, `pendingEmailVerification` is the key.
   if (is2FAEnabled && pendingEmailVerification) {
     return <Navigate to="/2fa-verify" replace />;
   }
@@ -134,7 +118,7 @@ const TwoFARoute = () => {
   return <Outlet />;
 };
 
-// === Routing ===
+// --- Routing ---
 const AppRoutes = () => {
   const router = createBrowserRouter([
     {
@@ -165,15 +149,17 @@ const AppRoutes = () => {
                 { path: "dashboard", element: <DashboardPage /> },
                 { path: "deposit", element: <DepositPage /> },
                 { path: "withdraw", element: <WithdrawalPage /> },
+                { path: "support", element: <SupportPage /> }, // General User Support Route
                 { path: "profile-settings", element: <ProfileSettingsPage /> }, // NEW: Profile Settings Page
               ],
             },
           ],
         },
         {
-          element: <AdminRoute />, // Admin route is separate and might have its own 2FA logic if needed
+          element: <AdminRoute />, // Admin route guard
           children: [
             { path: "admin", element: <AdminDashboard /> },
+            { path: "admin/chat", element: <AdminChatComponent /> }, // ✅ NEW: Admin Chat Component Route
           ],
         },
       ],
@@ -197,7 +183,7 @@ const AppRoutes = () => {
   );
 };
 
-// === App ===
+// --- App ---
 const App = () => (
   <AuthProvider>
     <AppRoutes />

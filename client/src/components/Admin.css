@@ -397,3 +397,96 @@ h3 {
     width: 100%;
   }
 }
+/* src/pages/Admin.css - Add these styles */
+
+/* Chat Overview Section */
+.chat-overview-section {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+.chat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 400px; /* Limit height and make it scrollable */
+  overflow-y: auto;
+  padding-right: 10px; /* Space for scrollbar */
+}
+
+.chat-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 15px;
+  background-color: #f0f8ff; /* Light blue background for chat items */
+  border-radius: 6px;
+  border: 1px solid #e0e7ff;
+  cursor: pointer;
+  transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
+}
+
+.chat-list-item:hover {
+  background-color: #e6f7ff;
+  border-color: #cce0ff;
+}
+
+.chat-info strong {
+  font-size: 1.1em;
+  color: #333;
+}
+
+.chat-info .last-message {
+  font-size: 0.9em;
+  color: #666;
+  margin-top: 4px;
+}
+
+.last-message-time {
+  font-size: 0.8em;
+  color: #999;
+}
+
+/* Chat Button in User Card */
+.user-actions .chat-btn {
+  background-color: #28a745; /* Green for chat */
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background-color 0.2s ease-in-out;
+  margin-left: 5px; /* Adjust spacing */
+}
+
+.user-actions .chat-btn:hover {
+  background-color: #218838;
+}
+
+/* Admin Chat View specific styles */
+.admin-chat-view {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+.back-to-chats-btn {
+  background-color: #6c757d; /* Grey back button */
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-bottom: 1rem;
+  transition: background-color 0.2s ease-in-out;
+}
+
+.back-to-chats-btn:hover {
+  background-color: #5a6268;
+}

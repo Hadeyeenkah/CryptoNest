@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx'; // Import useAuth from AuthContext
 
+
 function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const navigate = useNavigate();
@@ -57,7 +58,7 @@ function Navbar() {
                 <Link to="/profile-settings" className="nav-link" onClick={closeMenu}>Profile Settings</Link>
               </li>
               <li className="nav-item">
-                <Link to="/supportchat" className="nav-link" onClick={closeMenu}>Support Chat</Link> {/* Added Support Chat Link */}
+                <Link to="/support" className="nav-link" onClick={closeMenu}>Support Chat</Link> {/* Added Support Chat Link */}
               </li>
               <li className="nav-item">
                 <button className="nav-link btn btn-secondary" onClick={handleLogout}>

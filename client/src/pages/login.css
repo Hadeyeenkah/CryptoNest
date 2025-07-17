@@ -1,3 +1,5 @@
+/* login.css */
+
 /* Define CSS Variables for a Professional Theme */
 :root {
     --primary-color: #673AB7; /* Deep Purple */
@@ -6,7 +8,7 @@
     --card-background: #ffffff; /* White Card */
     --text-color-primary: #333333;
     --text-color-secondary: #666666;
-    --border-color: #e0e0e0;
+    --border-color: #e0e0e0; /* Lighter border for inputs */
     --button-hover-bg: #5e35b1;
     --error-color: #d32f2f;
     --error-background: #ffebee;
@@ -14,7 +16,9 @@
     --success-background: #e8f5e9;
     --shadow-light: rgba(0, 0, 0, 0.05);
     --shadow-medium: rgba(0, 0, 0, 0.1);
+    --shadow-strong: rgba(0, 0, 0, 0.15); /* New stronger shadow */
     --font-family: 'Inter', sans-serif;
+    --border-radius-md: 10px; /* Consistent with signup */
 }
 
 /* Global Body Styles */
@@ -26,6 +30,17 @@ body {
     background-color: var(--background-color);
     color: var(--text-color-primary);
     line-height: 1.6;
+    /* Crucial for preventing mobile browser auto-zoom and ensuring consistent text size */
+    -webkit-text-size-adjust: 100%; /* Prevent font size adjustment on iOS */
+    text-size-adjust: 100%; /* Standard property */
+}
+
+/* Input font size for mobile zoom prevention */
+input, textarea, select {
+    font-size: 16px; /* Crucial for preventing mobile browser auto-zoom */
+    -webkit-appearance: none; /* Remove default iOS styling for inputs */
+    -moz-appearance: none;
+    appearance: none;
 }
 
 /* Authentication Page Container */
@@ -34,9 +49,10 @@ body {
     justify-content: center;
     align-items: center;
     min-height: 100vh;
-    background-color: var(--background-color);
+    background: linear-gradient(135deg, #e0f2f7 0%, #c8e6c9 100%); /* Consistent gradient with signup */
     padding: 20px;
     box-sizing: border-box;
+    overflow: auto; /* Allow scrolling if content overflows */
 }
 
 /* Loading Screen specific styles for auth-page */
@@ -54,15 +70,32 @@ body {
 /* Authentication Form Card */
 .auth-container {
     background-color: var(--card-background);
-    border-radius: 12px;
-    box-shadow: 0 8px 25px var(--shadow-medium);
+    border-radius: 16px; /* Consistent with signup */
+    box-shadow: 0 15px 50px var(--shadow-strong); /* Stronger shadow, consistent with signup */
     padding: 40px;
     width: 100%;
-    max-width: 450px;
+    max-width: 450px; /* Consistent with signup */
     text-align: center;
     border: 1px solid var(--border-color);
     animation: fadeIn 0.5s ease-out;
     box-sizing: border-box;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Subtle background pattern for the card (consistent with signup) */
+.auth-container::before {
+    content: '';
+    position: absolute;
+    top: -50px;
+    left: -50px;
+    right: -50px;
+    bottom: -50px;
+    background-image: radial-gradient(circle at 100% 150%, #e8f5e9, transparent 50%),
+                      radial-gradient(circle at 0% -50%, #e3f2fd, transparent 50%);
+    opacity: 0.3;
+    z-index: -1;
+    animation: rotateBackground 20s linear infinite;
 }
 
 /* Header Section */
@@ -71,11 +104,12 @@ body {
 }
 
 .auth-title {
-    font-size: 2.2em;
+    font-size: 2.2em; /* Consistent with signup */
     color: var(--primary-color);
     margin-bottom: 15px;
     font-weight: 700;
     position: relative;
+    letter-spacing: -0.03em; /* Consistent with signup */
 }
 
 .auth-title::after {
@@ -87,13 +121,10 @@ body {
     margin: 10px auto 0;
     border-radius: 2px;
 }
-input, textarea, select {
-  font-size: 16px
-  }
 
 .auth-subtitle {
     color: var(--text-color-secondary);
-    font-size: 1em;
+    font-size: 1.05em; /* Consistent with signup */
     line-height: 1.5;
 }
 
@@ -105,12 +136,14 @@ input, textarea, select {
     padding: 12px 20px;
     border-radius: 8px;
     margin-bottom: 25px;
-    font-size: 0.9em;
+    font-size: 0.95em; /* Consistent with signup */
     text-align: left;
     display: flex;
     align-items: center;
     gap: 10px;
     animation: slideIn 0.3s ease-out;
+    box-sizing: border-box;
+    border-color: #ef9a9a; /* Lighter border for error, consistent with signup */
 }
 
 .auth-error .error-icon {
@@ -140,20 +173,21 @@ input, textarea, select {
 
 .form-group input {
     width: 100%;
-    padding: 12px 15px;
+    padding: 14px 18px; /* Consistent with signup */
     border: 1px solid var(--border-color);
-    border-radius: 8px;
+    border-radius: var(--border-radius-md); /* Consistent with signup */
     font-size: 1em;
     color: var(--text-color-primary);
-    background-color: var(--card-background);
+    background-color: #fcfcfc; /* Consistent with signup */
     transition: border-color 0.3s ease, box-shadow 0.3s ease;
     box-sizing: border-box;
 }
 
 .form-group input:focus {
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(103, 58, 183, 0.1);
+    box-shadow: 0 0 0 4px rgba(103, 58, 183, 0.2); /* Consistent with signup */
     outline: none;
+    background-color: white; /* Consistent with signup */
 }
 
 .form-group input:disabled {
@@ -164,14 +198,14 @@ input, textarea, select {
 
 /* Primary Button Styling */
 .btn {
-    padding: 14px 20px;
+    padding: 15px; /* Consistent with signup */
     border: none;
-    border-radius: 8px;
-    font-size: 1.1em;
+    border-radius: var(--border-radius-md); /* Consistent with signup */
+    font-size: 1.1em; /* Consistent with signup */
     font-weight: 600;
     cursor: pointer;
-    transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease;
-    box-shadow: 0 4px 15px var(--shadow-light);
+    transition: all 0.3s ease; /* Consistent with signup */
+    box-shadow: 0 5px 15px rgba(103,58,183,0.3); /* Consistent with signup */
     position: relative;
     overflow: hidden;
     display: inline-flex;
@@ -180,20 +214,35 @@ input, textarea, select {
     gap: 10px;
 }
 
+.btn::before { /* Shimmer effect for buttons */
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.5s ease-out;
+}
+
+.btn:hover::before {
+    left: 100%;
+}
+
 .btn-primary {
-    background-color: var(--primary-color);
+    background: linear-gradient(45deg, var(--primary-color), var(--secondary-color)); /* Gradient button */
     color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-    background-color: var(--button-hover-bg);
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px var(--shadow-medium);
+    background: linear-gradient(45deg, var(--button-hover-bg), #4d268a); /* Darker gradient on hover */
+    transform: translateY(-3px); /* More pronounced lift */
+    box-shadow: 0 8px 20px rgba(103,58,183,0.4); /* Enhanced shadow on hover */
 }
 
 .btn-primary:active:not(:disabled) {
     transform: translateY(0);
-    box-shadow: 0 2px 5px var(--shadow-light);
+    box-shadow: 0 2px 5px rgba(103,58,183,0.2);
 }
 
 .btn:disabled {
@@ -238,7 +287,7 @@ input, textarea, select {
 
 .auth-switch {
     margin-top: 25px;
-    font-size: 0.9em;
+    font-size: 0.95em; /* Consistent with signup */
     color: var(--text-color-secondary);
 }
 
@@ -250,7 +299,7 @@ input, textarea, select {
     cursor: pointer;
     text-decoration: underline;
     color: var(--primary-color);
-    font-weight: 600;
+    font-weight: 700; /* Bolder link, consistent with signup */
     transition: color 0.2s ease;
 }
 .auth-switch .auth-link.as-button:hover {
@@ -264,26 +313,36 @@ input, textarea, select {
     to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes slideIn {
-    from { opacity: 0; transform: translateX(-10px); }
-    to { opacity: 1; transform: translateX(0); }
+@keyframes slideIn { /* Renamed from slideInDown for clarity in login.css */
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes spinner {
     to { transform: rotate(360deg); }
 }
 
+@keyframes rotateBackground { /* Added for background pattern consistency */
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 /* Responsive adjustments */
 @media (max-width: 500px) {
+    .auth-page {
+        padding: 15px; /* Slightly less padding on very small screens */
+    }
     .auth-container {
         padding: 30px 20px;
-        border-radius: 0;
-        box-shadow: none;
-        border-left: none;
-        border-right: none;
+        border-radius: 12px; /* Consistent with signup */
+        box-shadow: 0 8px 30px rgba(0,0,0,0.1); /* Adjusted shadow for mobile */
     }
     .auth-title {
-        font-size: 2em;
+        font-size: 1.8em;
     }
     .auth-subtitle {
         font-size: 0.95em;
@@ -293,6 +352,9 @@ input, textarea, select {
         padding: 12px 15px;
     }
     .auth-error {
+        font-size: 0.85em;
+    }
+    .auth-switch {
         font-size: 0.85em;
     }
 }
