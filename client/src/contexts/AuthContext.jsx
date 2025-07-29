@@ -1,30 +1,28 @@
-// src/contexts/AuthContext.jsx
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signOut,
   signInWithCustomToken,
-  sendSignInLinkToEmail, // Import for email link
-  isSignInWithEmailLink, // Import to check if link is for email sign-in
-  signInWithEmailLink, // Import to sign in with email link
-  updatePassword, // Import for changing password
-  EmailAuthProvider, // Import for reauthentication
-  reauthenticateWithCredential, // Import for reauthentication
-  sendPasswordResetEmail, // NEW: Import for password reset
+  sendSignInLinkToEmail,
+  isSignInWithEmailLink,
+  signInWithEmailLink,
+  updatePassword,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  sendPasswordResetEmail,
 } from "firebase/auth";
 import {
   doc,
   onSnapshot,
-  getDoc, // Changed from firestoreGetDoc to getDoc
+  getDoc,
   setDoc,
-  serverTimestamp
+  serverTimestamp // Ensure serverTimestamp is imported
 } from "firebase/firestore";
 
-import { auth as firebaseAuth, db as firebaseDb } from "../firebase"; // Changed firestore as firebaseDb to db as firebaseDb
-// The line below is redundant as db is imported from ../firebase above
-// import { db } from '../firebase.js';
+import { auth as firebaseAuth, db as firebaseDb } from "../firebase";
 
+const AuthContext = createContext();
 
 // Helper function to ensure the user's profile document exists and is populated
 const ensureUserDocumentExists = async (firebaseUser, dbInstance, currentAppId) => {
@@ -36,7 +34,7 @@ const ensureUserDocumentExists = async (firebaseUser, dbInstance, currentAppId) 
   const userProfileDocRef = doc(dbInstance, `artifacts/${currentAppId}/users/${firebaseUser.uid}/profile`, 'data');
 
   try {
-    const docSnap = await getDoc(userProfileDocRef); // Changed firestoreGetDoc to getDoc
+    const docSnap = await getDoc(userProfileDocRef);
 
     let calculatedDisplayName = 'New User';
     let calculatedFullName = 'New User';
@@ -60,38 +58,37 @@ const ensureUserDocumentExists = async (firebaseUser, dbInstance, currentAppId) 
         email: firebaseUser.email || null,
         displayName: calculatedDisplayName,
         fullName: calculatedFullName,
-        createdAt: serverTimestamp(),
-        isAdmin: false,
-        is2FAEnabled: false, // New field: default 2FA to false
-        // New fields for crypto wallets
+        createdAt: serverTimestamp(), // Use serverTimestamp()
+        isAdmin: false, // Default to false for new users
+        is2FAEnabled: false, // Default 2FA to false
+        balance: 0, // Initialize balance
+        totalInvested: 0, // Initialize totalInvested
+        status: 'active', // Initialize status
         btcWallet: null,
         ethWallet: null,
         usdtWallet: null,
       };
       await setDoc(userProfileDocRef, newUserData);
-      const newDocSnap = await getDoc(userProfileDocRef); // Changed firestoreGetDoc to getDoc
+      const newDocSnap = await getDoc(userProfileDocRef);
       return newDocSnap.exists() ? newDocSnap.data() : null;
     } else {
       const existingProfileData = docSnap.data();
       let needsUpdate = false;
       const updateData = {};
 
-      if ((existingProfileData.email === null || existingProfileData.email === '') && firebaseUser.email) {
-        updateData.email = firebaseUser.email;
+      // Update email if it's missing or has changed in Firebase Auth
+      if (existingProfileData.email !== firebaseUser.email) {
+        updateData.email = firebaseUser.email || null; // Ensure null if Firebase user has no email
         needsUpdate = true;
-      } else if (existingProfileData.email !== firebaseUser.email && firebaseUser.email) {
-          updateData.email = firebaseUser.email;
-          needsUpdate = true;
-      } else if (existingProfileData.email !== null && firebaseUser.email === null) {
-          updateData.email = null;
-          needsUpdate = true;
       }
 
+      // Update displayName if it's 'New User' or doesn't match Firebase Auth display name
       if ((existingProfileData.displayName === 'New User' || !existingProfileData.displayName || existingProfileData.displayName !== calculatedDisplayName) && calculatedDisplayName !== 'New User') {
         updateData.displayName = calculatedDisplayName;
         needsUpdate = true;
       }
 
+      // Update fullName if it's 'New User' or doesn't match calculatedFullName
       if ((existingProfileData.fullName === 'New User' || !existingProfileData.fullName || existingProfileData.fullName !== calculatedFullName) && calculatedFullName !== 'New User') {
         updateData.fullName = calculatedFullName;
         needsUpdate = true;
@@ -101,12 +98,13 @@ const ensureUserDocumentExists = async (firebaseUser, dbInstance, currentAppId) 
       if (existingProfileData.btcWallet === undefined) { updateData.btcWallet = null; needsUpdate = true; }
       if (existingProfileData.ethWallet === undefined) { updateData.ethWallet = null; needsUpdate = true; }
       if (existingProfileData.usdtWallet === undefined) { updateData.usdtWallet = null; needsUpdate = true; }
-
+      if (existingProfileData.is2FAEnabled === undefined) { updateData.is2FAEnabled = false; needsUpdate = true; }
+      if (existingProfileData.status === undefined) { updateData.status = 'active'; needsUpdate = true; }
 
       if (needsUpdate) {
-        updateData.updatedAt = serverTimestamp();
+        updateData.updatedAt = serverTimestamp(); // Add or update updatedAt timestamp
         await setDoc(userProfileDocRef, updateData, { merge: true });
-        const newDocSnap = await getDoc(userProfileDocRef); // Changed firestoreGetDoc to getDoc
+        const newDocSnap = await getDoc(userProfileDocRef);
         return newDocSnap.exists() ? newDocSnap.data() : null;
       }
 
@@ -118,26 +116,25 @@ const ensureUserDocumentExists = async (firebaseUser, dbInstance, currentAppId) 
   }
 };
 
-const AuthContext = createContext();
-
 export const AuthProvider = ({ children }) => {
   const auth = firebaseAuth;
   const db = firebaseDb;
 
+  // Use global variables provided by the Canvas environment
   const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
   const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
   const [user, setUser] = useState(null);
   const [userId, setUserId] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
-  const [authChecked, setAuthChecked] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [profileLoading, setProfileLoading] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false); // True when Firebase Auth state has been checked
+  const [loading, setLoading] = useState(true); // Overall loading for auth state and initial profile
+  const [profileLoading, setProfileLoading] = useState(false); // Specifically for profile data fetch/update
   const [offline, setOffline] = useState(!navigator.onLine);
   const [authError, setAuthError] = useState(null);
-  const [pendingEmailVerification, setPendingEmailVerification] = useState(false); // New state for email 2FA
+  const [pendingEmailVerification, setPendingEmailVerification] = useState(false); // State for email 2FA
 
-  const unsubscribeProfileRef = useRef(null);
+  const unsubscribeProfileRef = useRef(null); // Ref to store the unsubscribe function for Firestore listener
 
   // Effect for handling online/offline status changes
   useEffect(() => {
@@ -153,6 +150,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   // Effect for initial Firebase Authentication (using custom token if available)
+  // This runs once when the component mounts to handle Canvas-specific initial auth.
   useEffect(() => {
     if (!auth) {
       console.log("[AuthContext:InitialAuthEffect] Auth instance not ready, skipping initial auth attempt.");
@@ -165,17 +163,20 @@ export const AuthProvider = ({ children }) => {
           await signInWithCustomToken(auth, initialAuthToken);
           console.log("[AuthContext:InitialAuthEffect] Signed in with Canvas custom token successfully.");
         } else {
-          console.log("[AuthContext:InitialAuthEffect] No Canvas custom token provided. Skipping anonymous sign-in.");
+          // If no custom token, we rely on onAuthStateChanged for existing sessions
+          console.log("[AuthContext:InitialAuthEffect] No Canvas custom token provided. Relying on existing session or user login.");
         }
       } catch (err) {
         console.error("[AuthContext:InitialAuthEffect] Initial authentication failed:", err);
         setAuthError(`Authentication failed: ${err.message}`);
       }
+      // Note: setLoading(false) and setAuthChecked(true) are handled by the onAuthStateChanged listener
+      // to ensure all subsequent state is consistent.
     };
 
     performInitialAuth();
 
-  }, [auth, initialAuthToken]);
+  }, [auth, initialAuthToken]); // Dependencies: auth instance and initialAuthToken
 
   // Main effect for Firebase Authentication state changes and Firestore Profile Listener
   useEffect(() => {
@@ -189,6 +190,7 @@ export const AuthProvider = ({ children }) => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       console.log("[AuthContext:AuthStateListenerEffect] Firebase Auth state changed. Current user UID:", firebaseUser ? firebaseUser.uid : "null");
 
+      // Unsubscribe from previous profile listener if it exists
       if (unsubscribeProfileRef.current) {
         unsubscribeProfileRef.current();
         unsubscribeProfileRef.current = null;
@@ -197,13 +199,15 @@ export const AuthProvider = ({ children }) => {
 
       setUser(firebaseUser);
       setUserId(firebaseUser ? firebaseUser.uid : null);
-      setAuthChecked(true);
-      setAuthError(null);
+      setAuthChecked(true); // Auth state has been checked
+      setAuthError(null); // Clear any previous auth errors
 
       if (firebaseUser) {
+        setProfileLoading(true); // Start loading profile data
         const userProfileDocRef = doc(db, `artifacts/${appId}/users/${firebaseUser.uid}/profile`, 'data');
         console.log(`[AuthContext:AuthStateListenerEffect] Setting up real-time profile listener for path: artifacts/${appId}/users/${firebaseUser.uid}/profile/data`);
 
+        // Set up real-time listener for the user's profile document
         unsubscribeProfileRef.current = onSnapshot(userProfileDocRef,
           (docSnap) => {
             if (docSnap.exists()) {
@@ -212,6 +216,7 @@ export const AuthProvider = ({ children }) => {
               console.log("[AuthContext:AuthStateListenerEffect] Real-time profile data received:", profileData);
             } else {
               console.warn("[AuthContext:AuthStateListenerEffect] User profile document does not exist in Firestore. Attempting to create/initialize...");
+              // If profile doesn't exist, ensure it's created/initialized
               ensureUserDocumentExists(firebaseUser, db, appId)
                 .then(profile => {
                   if (profile) {
@@ -223,27 +228,29 @@ export const AuthProvider = ({ children }) => {
                 })
                 .catch(error => console.error("[AuthContext:AuthStateListenerEffect] Error during profile creation/initialization:", error));
             }
-            setLoading(false);
-            setProfileLoading(false);
-            console.log("[AuthContext:AuthStateListenerEffect] Auth check complete. Loading: false, AuthChecked: true.");
+            setLoading(false); // Overall loading complete
+            setProfileLoading(false); // Profile loading complete
+            console.log("[AuthContext:AuthStateListenerEffect] Auth and profile check complete. Loading: false, AuthChecked: true.");
           },
           (error) => {
             console.error("[AuthContext:AuthStateListenerEffect] Error listening to user profile changes:", error);
             setAuthError(`Profile data error: ${error.message}`);
-            setUserProfile(null);
-            setLoading(false);
-            setProfileLoading(false);
+            setUserProfile(null); // Clear profile on error
+            setLoading(false); // Overall loading complete
+            setProfileLoading(false); // Profile loading complete
             console.log("[AuthContext:AuthStateListenerEffect] Auth check complete with profile error. Loading: false, AuthChecked: true.");
           }
         );
       } else {
-        setUserProfile(null);
-        setLoading(false);
-        setProfileLoading(false);
+        // No Firebase user (logged out or not authenticated)
+        setUserProfile(null); // Clear user profile
+        setLoading(false); // Overall loading complete
+        setProfileLoading(false); // Profile loading complete
         console.log("[AuthContext:AuthStateListenerEffect] No Firebase user detected, userProfile cleared. Loading: false.");
       }
     });
 
+    // Cleanup function for useEffect: unsubscribe from Firebase Auth and Firestore listeners
     return () => {
       unsubscribeAuth();
       if (unsubscribeProfileRef.current) {
@@ -251,16 +258,17 @@ export const AuthProvider = ({ children }) => {
       }
       console.log("[AuthContext:AuthStateListenerEffect] Cleanup completed.");
     };
-  }, [auth, db, appId]);
+  }, [auth, db, appId]); // Dependencies: Firebase auth, db instances, and appId
 
+  // Callback to manually refresh user profile data
   const refreshProfile = useCallback(async (firebaseUser) => {
     if (!firebaseUser || !firebaseUser.uid || !db || !appId) {
-      console.warn("refreshProfile called without valid Firebase user, db, or APP_ID.");
+      console.warn("[AuthContext] refreshProfile called without valid Firebase user, db, or APP_ID.");
       setUserProfile(null);
       setProfileLoading(false);
       return;
     }
-    setProfileLoading(true);
+    setProfileLoading(true); // Indicate profile is loading
     try {
       const profile = await ensureUserDocumentExists(firebaseUser, db, appId);
       setUserProfile(profile || null);
@@ -270,27 +278,31 @@ export const AuthProvider = ({ children }) => {
       setAuthError(`Failed to refresh profile: ${err.message}`);
       setUserProfile(null);
     } finally {
-      setProfileLoading(false);
+      setProfileLoading(false); // Profile loading complete
     }
-  }, [db, appId]);
+  }, [db, appId]); // Dependencies: db instance and appId
 
+  // Function to handle user login
   const login = async (email, password) => {
-    setLoading(true);
-    setAuthError(null);
+    setLoading(true); // Start overall loading
+    setAuthError(null); // Clear any previous errors
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       console.log("[Auth] User logged in successfully.");
-      // The onAuthStateChanged listener will handle setting user and profile
+      // onAuthStateChanged listener will handle setting user and profile
       return { success: true, user: userCredential.user };
     } catch (err) {
       console.error("[Auth] Login error:", err);
       setAuthError(err.message);
       return { success: false, error: err.message };
+    } finally {
+      // setLoading(false) is handled by onAuthStateChanged
     }
   };
 
+  // Function to handle user logout
   const logout = async () => {
-    setLoading(true);
+    setLoading(true); // Start overall loading
     try {
       await signOut(auth);
       console.log("[Auth] User logged out successfully.");
@@ -299,6 +311,8 @@ export const AuthProvider = ({ children }) => {
       console.error("[Auth] Logout error:", err);
       setAuthError(`Logout failed: ${err.message}`);
       return { success: false, error: err.message };
+    } finally {
+      // setLoading(false) is handled by onAuthStateChanged
     }
   };
 
@@ -319,7 +333,7 @@ export const AuthProvider = ({ children }) => {
     // Define the URL to redirect to after email link is clicked
     // This URL must be in your Firebase Console -> Authentication -> Sign-in method -> Email link (passwordless sign-in) -> Authorized domains
     const actionCodeSettings = {
-      url: `${window.location.origin}/verify-2fa-email`, // Redirect back to a specific page in your app
+      url: `${window.location.origin}/2fa-verify`, // Redirect back to your 2FA verification page
       handleCodeInApp: true, // This must be true for email link sign-in
     };
 
@@ -379,7 +393,7 @@ export const AuthProvider = ({ children }) => {
 
     const userProfileDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
     try {
-      await setDoc(userProfileDocRef, { is2FAEnabled: isEnabled }, { merge: true });
+      await setDoc(userProfileDocRef, { is2FAEnabled: isEnabled, updatedAt: serverTimestamp() }, { merge: true });
       console.log(`[AuthContext] 2FA status updated to ${isEnabled} for user ${userId}.`);
       // Refresh profile to ensure UI reflects the change immediately
       await refreshProfile(user);
@@ -424,7 +438,7 @@ export const AuthProvider = ({ children }) => {
 
     const userProfileDocRef = doc(db, `artifacts/${appId}/users/${userId}/profile`, 'data');
     try {
-      await setDoc(userProfileDocRef, walletUpdates, { merge: true });
+      await setDoc(userProfileDocRef, { ...walletUpdates, updatedAt: serverTimestamp() }, { merge: true });
       console.log(`[AuthContext] Crypto profile updated for user ${userId}:`, walletUpdates);
       // Refresh profile to ensure UI reflects the change immediately
       await refreshProfile(user);
@@ -466,8 +480,6 @@ export const AuthProvider = ({ children }) => {
         errorMessage = "Incorrect current password.";
       } else if (error.code === 'auth/requires-recent-login') {
         errorMessage = "Please log out and log in again to change your password for security reasons.";
-      } else if (error.code === 'auth/weak-password') {
-        errorMessage = "New password is too weak. " + error.message;
       } else {
         errorMessage = error.message;
       }
@@ -476,7 +488,7 @@ export const AuthProvider = ({ children }) => {
     }
   }, [user]);
 
-  // NEW: Function to send a password reset email
+  // Function to send a password reset email
   const sendPasswordReset = useCallback(async (email) => {
     if (!auth) {
       throw new Error("Authentication service not ready.");
@@ -488,7 +500,7 @@ export const AuthProvider = ({ children }) => {
     setAuthError(null); // Clear any previous auth errors
     try {
       console.log(`[AuthContext] Sending password reset email to ${email}...`);
-      await sendPasswordResetEmail(auth, email); // This is the key Firebase call
+      await sendPasswordResetEmail(auth, email);
       console.log("[AuthContext] Password reset email sent successfully.");
       return { success: true };
     } catch (error) {
@@ -506,27 +518,27 @@ export const AuthProvider = ({ children }) => {
     }
   }, [auth]);
 
-
+  // The value provided by the AuthContext to its consumers
   const value = {
     user,
     userId,
     userProfile,
-    authChecked,
-    isAuthReady: !!user,
-    loading,
-    profileLoading,
+    authChecked, // Indicates if Firebase Auth state has been initialized
+    isAuthReady: !!user, // Simple boolean for if a user object exists
+    loading, // Overall loading for auth and initial profile data
+    profileLoading, // Specifically for profile data operations
     offline,
     authError,
     login,
     logout,
     refreshProfile,
-    auth,
-    db,
+    auth, // Expose auth instance for direct Firebase Auth operations if needed
+    db,   // Expose db instance for direct Firestore operations if needed
     appId,
-    isAuthenticated: !!user,
-    isAdmin: userProfile?.isAdmin || false,
+    isAuthenticated: !!user, // More explicit flag for authentication status
+    isAdmin: userProfile?.isAdmin || false, // Derived from userProfile
     // 2FA related exports
-    is2FAEnabled: userProfile?.is2FAEnabled || false,
+    is2FAEnabled: userProfile?.is2FAEnabled || false, // Derived from userProfile
     send2FAEmailLink,
     completeEmail2FASignIn,
     update2FAStatus,
@@ -536,7 +548,6 @@ export const AuthProvider = ({ children }) => {
     // User Profile related exports
     updateFullName,
     changePassword,
-    // NEW: Password Reset export
     sendPasswordReset,
   };
 

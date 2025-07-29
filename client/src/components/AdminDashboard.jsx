@@ -15,6 +15,7 @@ import {
   where,
   orderBy, // ✅ Ensure orderBy is imported
   limit,
+  serverTimestamp, // Import serverTimestamp
 } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '../firebase.js'; // Ensure db is imported from firebase.js
@@ -284,13 +285,13 @@ const AdminDashboard = () => {
         // Update user profile data
         transactionFirestore.update(userProfileRef, {
           ...profileUpdates,
-          updatedAt: new Date(),
+          updatedAt: serverTimestamp(), // Use serverTimestamp()
         });
 
         // Update user dashboard data
         transactionFirestore.update(userDashboardRef, {
           ...dashboardUpdates,
-          updatedAt: new Date(),
+          updatedAt: serverTimestamp(), // Use serverTimestamp()
         });
       });
 
@@ -362,8 +363,8 @@ const AdminDashboard = () => {
             balance: 0,
             totalInvested: 0,
             currentInvestment: null,
-            updatedAt: new Date(),
-            createdAt: new Date(),
+            updatedAt: serverTimestamp(), // Use serverTimestamp()
+            createdAt: serverTimestamp(), // Use serverTimestamp()
           });
         }
 
@@ -401,7 +402,7 @@ const AdminDashboard = () => {
                         description: selectedPlan.description,
                         gradient: selectedPlan.gradient,
                         // You might want to add a 'startDate' for ROI calculation
-                        startDate: new Date(),
+                        startDate: serverTimestamp(), // Use serverTimestamp()
                         investedAmount: amount, // Store the amount invested in this plan instance
                     };
                 } else {
@@ -419,9 +420,9 @@ const AdminDashboard = () => {
         // Update transaction status
         transactionFirestore.update(transRef, {
           status: newStatus,
-          updatedAt: new Date(),
+          updatedAt: serverTimestamp(), // Use serverTimestamp()
           approvedBy: user.email || user.uid, // Store who approved it
-          approvedAt: new Date(),
+          approvedAt: serverTimestamp(), // Use serverTimestamp()
         });
 
         // Update user's dashboard data (balance and totalInvested)
@@ -429,14 +430,14 @@ const AdminDashboard = () => {
           balance: updatedBalance,
           totalInvested: updatedTotalInvested,
           currentInvestment: updatedCurrentInvestment,
-          updatedAt: new Date(),
+          updatedAt: serverTimestamp(), // Use serverTimestamp()
         });
 
         // Also update the profile balance for consistency, though dashboardData is primary
         transactionFirestore.update(userProfileRef, {
             balance: updatedBalance,
             totalInvested: updatedTotalInvested, // Keep profile totalInvested in sync
-            updatedAt: new Date(),
+            updatedAt: serverTimestamp(), // Use serverTimestamp()
         });
 
       });
@@ -454,7 +455,7 @@ const AdminDashboard = () => {
     try {
       await updateDoc(transRef, {
         ...newData,
-        updatedAt: new Date(),
+        updatedAt: serverTimestamp(), // Use serverTimestamp()
       });
       alert('Transaction updated successfully');
       fetchTransactions();

@@ -3,7 +3,7 @@
 /* Global resets and base styles */
 body {
   font-family: 'Inter', sans-serif;
-  background: #f8f9fb;
+  background: white;
   color: #333;
   margin: 0;
   line-height: 1.6;
@@ -30,7 +30,7 @@ input, textarea, select {
   align-items: center;
   min-height: 100vh;
   padding: 20px;
-  background: linear-gradient(135deg, #e0f2f7 0%, #c8e6c9 100%); /* Soft gradient background */
+  background: white; /* Changed to white background */
   overflow: auto; /* Allow scrolling if content overflows */
 }
 

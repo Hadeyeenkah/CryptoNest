@@ -232,12 +232,15 @@ const DashboardPage = () => {
           console.log("DashboardPage: Fetched dashboard data:", data);
         } else {
           // Initialize user dashboard data if it doesn't exist
+          // FIX: Set initial balance to 0 to comply with Firestore rules for 'create'
           const initialData = {
             currentInvestment: null, // Store just the ID or null
-            balance: 1000.00, // Initial balance for new users
+            balance: 0, // Changed from 1000.00 to 0 to comply with Firestore rules
             totalInvested: 0,
             lastDailyEarningTimestamp: null,
             lastCalculatedDailyEarningAmount: 0,
+            createdAt: Timestamp.now(), // Added
+            updatedAt: Timestamp.now(), // Added
           };
           setDoc(userDashboardDocRef, initialData)
             .then(() => {
@@ -265,8 +268,8 @@ const DashboardPage = () => {
           id: doc.id,
           ...doc.data(),
           timestamp: doc.data().timestamp instanceof Timestamp
-                         ? doc.data().timestamp.toDate()
-                         : (doc.data().timestamp ? new Date(doc.data().timestamp) : null), // Handle potentially missing timestamp
+                             ? doc.data().timestamp.toDate()
+                             : (doc.data().timestamp ? new Date(doc.data().timestamp) : null), // Handle potentially missing timestamp
         }));
         setTransactions(fetchedTransactions);
         console.log("DashboardPage: Fetched user transactions from subcollection:", fetchedTransactions);
@@ -298,8 +301,8 @@ const DashboardPage = () => {
     setIsDarkMode(prevMode => !prevMode);
   };
 
-  // Callback to update Firestore data
-  const updateFirestoreData = useCallback(async (newData) => {
+  // Fixed callback to update Firestore data - only send fields that are being updated
+  const updateFirestoreData = useCallback(async (updates) => {
     if (!db || !userId || !appId) {
       console.error("Firestore, User ID, or App ID not available for update.");
       setShowInfoModal(true);
@@ -308,9 +311,26 @@ const DashboardPage = () => {
       return;
     }
     const userDocRef = doc(db, 'artifacts', appId, 'users', userId, 'dashboardData', 'data');
+
+    // Only include updatedAt and the specific fields being updated
+    const payload = {
+      updatedAt: Timestamp.now(), // Always include updatedAt
+    };
+
+    // Only add fields that are explicitly being updated
+    if (updates.hasOwnProperty('lastCalculatedDailyEarningAmount')) {
+      payload.lastCalculatedDailyEarningAmount = updates.lastCalculatedDailyEarningAmount;
+    }
+    if (updates.hasOwnProperty('lastDailyEarningTimestamp')) {
+      payload.lastDailyEarningTimestamp = updates.lastDailyEarningTimestamp;
+    }
+    if (updates.hasOwnProperty('currentInvestment')) {
+      payload.currentInvestment = updates.currentInvestment;
+    }
+
     try {
-      console.log("Attempting to send to Firestore:", newData); // For debugging
-      await setDoc(userDocRef, newData, { merge: true });
+      console.log("Attempting to send to Firestore (owner update):", payload);
+      await setDoc(userDocRef, payload, { merge: true });
       console.log("Data updated in Firestore.");
     } catch (error) {
       console.error("Error updating Firestore:", error);
@@ -321,6 +341,8 @@ const DashboardPage = () => {
   }, [db, userId, appId]);
 
   // Effect for daily earnings calculation and balance update
+  // IMPORTANT: The actual balance update should happen server-side via Cloud Functions
+  // This client-side logic only updates `lastDailyEarningTimestamp` and `lastCalculatedDailyEarningAmount`
   const calculateDailyEarningsEffect = useCallback(async () => {
     if (isLoading || !currentInvestment || totalInvested <= 0) {
       return;
@@ -335,33 +357,32 @@ const DashboardPage = () => {
     }
 
     // Check if a new day has started since the last calculation
-    // Or if it's the very first time (lastCalcDate is null)
     if (!lastCalcDate || lastCalcDate.getTime() < today.getTime()) {
       const earningsForToday = totalInvested * currentInvestment.dailyROI;
-      const newBalance = balance + earningsForToday;
 
-      console.log(`Daily earnings calculation: totalInvested=${totalInvested}, dailyROI=${currentInvestment.dailyROI}, earningsForToday=${earningsForToday}`);
-      console.log(`New Balance after daily payout: ${newBalance}`);
+      console.log(`Daily earnings calculation (client-side): totalInvested=${totalInvested}, dailyROI=${currentInvestment.dailyROI}, earningsForToday=${earningsForToday}`);
 
-      // Update Firestore with the new balance and daily earnings amount
+      // Update Firestore with the last calculated amount and timestamp.
+      // The actual 'balance' update will be handled by a server-side process (e.g., Cloud Function).
       await updateFirestoreData({
-        balance: newBalance,
         lastCalculatedDailyEarningAmount: earningsForToday, // Store the full daily earning for display
         lastDailyEarningTimestamp: Timestamp.now(), // Update to current time
       });
+
+      // Set display earnings immediately to show the effect to the user
+      setDisplayDailyEarnings(earningsForToday);
+
     } else {
       // If it's the same day, ensure displayDailyEarnings reflects the last calculated amount
-      // This prevents re-animation if the component re-renders on the same day
       setDisplayDailyEarnings(lastCalculatedDailyEarningAmount);
     }
-  }, [isLoading, currentInvestment, totalInvested, lastDailyEarningTimestamp, balance, updateFirestoreData, lastCalculatedDailyEarningAmount]);
+  }, [isLoading, currentInvestment, totalInvested, lastDailyEarningTimestamp, updateFirestoreData, lastCalculatedDailyEarningAmount]);
 
   useEffect(() => {
     // Run the daily earnings calculation logic
     calculateDailyEarningsEffect();
 
     // Set up a daily interval to re-check for new day and trigger earnings
-    // This interval runs every hour to catch the start of a new day reliably
     const dailyCheckInterval = setInterval(() => {
       calculateDailyEarningsEffect();
     }, 1000 * 60 * 60); // Every hour
@@ -417,14 +438,19 @@ const DashboardPage = () => {
       return;
     }
 
-    // --- CRITICAL FIX HERE ---
-    // Create a new object that EXCLUDES the 'icon' property before sending to Firestore
-    const planToStore = { ...plan };
-    delete planToStore.icon;
+    // FIX: Explicitly select serializable properties for currentInvestment
+    // This prevents any non-Firestore-compatible data (like JSX elements) from being sent.
+    const planToStore = {
+      id: plan.id,
+      name: plan.name,
+      dailyROI: plan.dailyROI,
+      minInvestment: plan.minInvestment,
+      maxInvestment: plan.maxInvestment,
+      description: plan.description,
+      gradient: plan.gradient,
+    };
 
     await updateFirestoreData({ currentInvestment: planToStore });
-    // --- END CRITICAL FIX ---
-
     // Redirect to deposit page after selecting a plan
     navigate('/deposit');
   }, [db, userId, appId, updateFirestoreData, navigate]);
@@ -590,51 +616,54 @@ const DashboardPage = () => {
                     >
                       <div className="transaction-icon">
                         {transaction.type === 'deposit' ? (
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                            <path d="M8 0a1 1 0 0 1 1 1v6h6a1 1 0 1 1 0 2H9v6a1 1 0 1 1-2 0V9H1a1 1 0 0 1 0-2h6V1a1 1 0 0 1 1-1z"/>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <polyline points="19 12 12 19 5 12"></polyline>
+                          </svg>
+                        ) : transaction.type === 'withdrawal' ? (
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="12" y1="19" x2="12" y2="5"></line>
+                            <polyline points="5 12 12 5 19 12"></polyline>
+                          </svg>
+                        ) : transaction.type === 'earning' ? (
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M20 17.58A5 5 0 0 0 18 8h-1.26a8 8 0 1 0-11.62 9.77"></path>
+                            <polyline points="12 12 16 16 20 12"></polyline>
                           </svg>
                         ) : (
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                            <path d="M1 7a1 1 0 0 1 1-1h12a1 1 0 1 1 0 2H2a1 1 0 0 1-1-1z"/>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="16" x2="12" y2="12"></line>
+                            <line x1="12" y1="8" x2="12.01" y2="8"></line>
                           </svg>
                         )}
                       </div>
                       <div className="transaction-details">
-                        <span className="transaction-type">
-                          {transaction.type === 'deposit' ? 'Deposit' : 'Withdrawal'}
-                        </span>
+                        <span className="transaction-type">{capitalize(transaction.type)}</span>
                         <span className="transaction-date">
-                          {transaction.timestamp ? transaction.timestamp.toLocaleString() : 'N/A'}
+                          {transaction.timestamp ? transaction.timestamp.toLocaleDateString() : 'N/A'}
                         </span>
-                        {transaction.status && (
-                          <span className={`transaction-status status-${transaction.status.toLowerCase()}`}>
-                            {transaction.status}
-                          </span>
-                        )}
                       </div>
-                      <span className={`transaction-amount ${transaction.type}`}>
-                        {transaction.type === 'deposit' ? '+' : '-'}{formatCurrency(transaction.amount)}
-                      </span>
+                      <div className={`transaction-amount ${transaction.type}`}>
+                        {formatCurrency(transaction.amount)}
+                      </div>
                     </div>
                   ))}
                 </div>
               ) : (
                 <div className="no-transactions">
-                  <p>No transactions yet. Start investing today!</p>
+                  <p>No transactions found yet.</p>
+                  <p>Make your first deposit to see your activity here!</p>
                 </div>
               )}
             </div>
           </section>
         </>
-      </div> {/* End of dashboard-content wrapper */}
+      </div>
 
-      {/* Modals (for info messages) */}
-      <Modal
-        show={showInfoModal}
-        title={infoModalTitle}
-        onClose={() => setShowInfoModal(false)}
-      >
-        <p className="modal-description">{infoModalMessage}</p>
+      {/* Info Modal */}
+      <Modal show={showInfoModal} title={infoModalTitle} onClose={() => setShowInfoModal(false)}>
+        <p>{infoModalMessage}</p>
       </Modal>
     </div>
   );

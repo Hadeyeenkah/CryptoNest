@@ -1,20 +1,25 @@
+// src/App.jsx
 import React, { Suspense, useState, useEffect } from "react";
 import {
   createBrowserRouter,
   RouterProvider,
   Navigate,
   Outlet,
+  useLocation // Import useLocation to read current path
 } from "react-router-dom";
-import { doc, onSnapshot } from "firebase/firestore"; // Import Firestore functions
+// Removed direct Firestore imports as they are handled in AuthContext
+// import { doc, onSnapshot } from "firebase/firestore";
 
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 
 import Navbar from "./components/Navbar";
-import SupportPage from './pages/SupportPage'; // General user Support Page
+import SupportPage from './pages/SupportPage';
 
 import "./assets/styles/main.css";
-// import { BrowserRouter, Routes, Route } from 'react-router-dom' // ❌ Remove these, createBrowserRouter is used
 import "./App.css";
+
+// --- Import the new PostLoginRedirect component ---
+import PostLoginRedirect from "./components/PostLoginRedirect";
 
 // --- Lazy loaded pages for better performance ---
 const HomePage = React.lazy(() => import("./pages/HomePage"));
@@ -24,10 +29,10 @@ const LoginPage = React.lazy(() => import("./pages/LoginPage"));
 const SignupPage = React.lazy(() => import("./pages/SignupPage"));
 const DashboardPage = React.lazy(() => import("./pages/DashboardPage"));
 const AdminDashboard = React.lazy(() => import("./components/AdminDashboard"));
-const AdminChatComponent = React.lazy(() => import("./components/AdminChatComponent.jsx")); // ✅ NEW: Import AdminChatComponent
-const TwoFactorAuthPage = React.lazy(() => import("./pages/TwoFactorAuthPage")); // New 2FA Page
-const ProfileSettingsPage = React.lazy(() => import("./pages/ProfileSettingsPage.jsx")); // NEW: Import ProfileSettingsPage
-const ForgotPasswordPage = React.lazy(() => import("./pages/ForgotPasswordPage.jsx")); // NEW: Import ForgotPasswordPage
+const AdminChatComponent = React.lazy(() => import("./components/AdminChatComponent.jsx"));
+const TwoFactorAuthPage = React.lazy(() => import("./pages/TwoFactorAuthPage"));
+const ProfileSettingsPage = React.lazy(() => import("./pages/ProfileSettingsPage.jsx"));
+const ForgotPasswordPage = React.lazy(() => import("./pages/ForgotPasswordPage.jsx"));
 
 // --- Layouts ---
 const LayoutWithNavbar = () => (
@@ -45,7 +50,7 @@ const LayoutWithoutNavbar = () => (
   </main>
 );
 
-// --- Route Guards ---
+// --- Route Guards & Helpers ---
 const Loading = () => (
   <div style={{
     display: 'flex',
@@ -53,7 +58,7 @@ const Loading = () => (
     alignItems: 'center',
     minHeight: '100vh',
     fontSize: '24px',
-    color: '#6a0dad',
+    color: '#6a0dad', // A nice vibrant color
     backgroundColor: '#f8fafc'
   }}>
     Loading...
@@ -64,109 +69,130 @@ const PrivateRoute = () => {
   const { isAuthenticated, authChecked } = useAuth();
 
   if (!authChecked) return <Loading />;
-  return isAuthenticated ? <Outlet /> : <Navigate to="/login" replace />;
+  // If not authenticated, redirect to login
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+
+  // If authenticated, allow access to nested routes (which might include 2FA check)
+  return <Outlet />;
 };
 
 const AdminRoute = () => {
   const { isAuthenticated, isAdmin, authChecked } = useAuth();
 
   if (!authChecked) return <Loading />;
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
-  return isAdmin ? <Outlet /> : <Navigate to="/dashboard" replace />;
+  if (!isAuthenticated) return <Navigate to="/login" replace />; // Must be authenticated
+  if (!isAdmin) return <Navigate to="/dashboard" replace />; // Must be an admin
+
+  return <Outlet />; // If authenticated and admin, allow access
 };
 
 const PublicRoute = () => {
-  const { isAuthenticated, isAdmin, authChecked } = useAuth();
+  const { isAuthenticated, authChecked } = useAuth();
 
   if (!authChecked) return <Loading />;
-  return !isAuthenticated
-    ? <Outlet />
-    : <Navigate to={isAdmin ? "/admin" : "/dashboard"} replace />;
+
+  // If authenticated, redirect them away from public-only routes (login/signup).
+  // They will then be handled by the the root '/' route and PostLoginRedirect.
+  if (isAuthenticated) {
+    return <Navigate to="/" replace />;
+  }
+  // If not authenticated, allow access to public routes
+  return <Outlet />;
 };
 
-// New Two-Factor Authentication Route Guard
 const TwoFARoute = () => {
-  const { isAuthenticated, authChecked, userId, db, appId, is2FAEnabled, pendingEmailVerification } = useAuth(); // Get is2FAEnabled from AuthContext
-  const [checking2FA, setChecking2FA] = useState(true);
+  const { isAuthenticated, authChecked, is2FAEnabled, pendingEmailVerification } = useAuth();
 
-  useEffect(() => {
-    // If 2FA is not enabled for the user, no need to check for pending verification
-    if (authChecked && isAuthenticated && !is2FAEnabled) {
-      setChecking2FA(false);
-      return;
-    }
-
-    // If 2FA is enabled and a verification is pending (e.g., after initial setup email sent)
-    if (authChecked && isAuthenticated && is2FAEnabled && pendingEmailVerification) {
-        setChecking2FA(false); // We know 2FA is pending, so don't need Firestore listener for this
-        return;
-    }
-
-    setChecking2FA(false); // Assume no further checks needed if not pending or not enabled
-  }, [isAuthenticated, authChecked, userId, db, appId, is2FAEnabled, pendingEmailVerification]);
-
-  if (checking2FA) {
-    return <Loading />; // Show loading while determining 2FA status
+  // Initial check: if auth is not ready or user is not authenticated, let parent PrivateRoute handle it.
+  if (!authChecked || !isAuthenticated) {
+    return <Loading />; // Or a more specific check if needed
   }
 
-  // If 2FA is enabled and there's a pending email verification (meaning the link was sent but not clicked yet)
+  // If 2FA is enabled and there's a pending email verification, redirect to 2FA verification page
   if (is2FAEnabled && pendingEmailVerification) {
     return <Navigate to="/2fa-verify" replace />;
   }
 
-  // Otherwise, allow access to the nested routes (dashboard, deposit, etc.)
+  // If 2FA is enabled and no pending verification, or 2FA is not enabled, allow access
   return <Outlet />;
 };
 
-// --- Routing ---
+// Helper component for the root path's content
+const PublicOnlyHome = () => {
+  const { isAuthenticated, authChecked } = useAuth();
+  // Ensure authentication status is known before deciding
+  if (!authChecked) return <Loading />;
+
+  // If authenticated, let PostLoginRedirect handle where they should go
+  if (isAuthenticated) {
+    return <PostLoginRedirect />;
+  }
+
+  // If not authenticated, show the public HomePage
+  return <HomePage />;
+};
+
+
+// --- Routing Configuration ---
 const AppRoutes = () => {
   const router = createBrowserRouter([
     {
+      // Routes without a Navbar (e.g., login, signup, home, 2FA verification)
       element: <LayoutWithoutNavbar />,
       children: [
-        { path: "/", element: <HomePage /> },
         {
-          element: <PublicRoute />,
+          path: "/",
+          // This component will decide whether to show HomePage (unauthenticated)
+          // or redirect (authenticated via PostLoginRedirect)
+          element: <PublicOnlyHome />
+        },
+        {
+          element: <PublicRoute />, // Protects login/signup from authenticated users
           children: [
             { path: "login", element: <LoginPage /> },
             { path: "signup", element: <SignupPage /> },
-            { path: "forgot-password", element: <ForgotPasswordPage /> }, // NEW: Forgot Password Page Route
+            { path: "forgot-password", element: <ForgotPasswordPage /> },
           ],
         },
-        // Direct route for 2FA verification, accessible after login but before full dashboard access
         { path: "2fa-verify", element: <TwoFactorAuthPage /> },
       ],
     },
     {
+      // Routes with a Navbar (authenticated areas)
       element: <LayoutWithNavbar />,
       children: [
         {
-          element: <PrivateRoute />, // Ensures user is authenticated first
+          element: <PrivateRoute />, // All routes under this must be authenticated
           children: [
             {
-              element: <TwoFARoute />, // Enforces 2FA verification after authentication
+              // Nested route for 2FA protection. All regular user pages go here.
+              element: <TwoFARoute />,
               children: [
                 { path: "dashboard", element: <DashboardPage /> },
                 { path: "deposit", element: <DepositPage /> },
                 { path: "withdraw", element: <WithdrawalPage /> },
-                { path: "support", element: <SupportPage /> }, // General User Support Route
-                { path: "profile-settings", element: <ProfileSettingsPage /> }, // NEW: Profile Settings Page
+                { path: "support", element: <SupportPage /> },
+                { path: "profile-settings", element: <ProfileSettingsPage /> },
               ],
             },
-          ],
-        },
-        {
-          element: <AdminRoute />, // Admin route guard
-          children: [
-            { path: "admin", element: <AdminDashboard /> },
-            { path: "admin/chat", element: <AdminChatComponent /> }, // ✅ NEW: Admin Chat Component Route
+            // Admin specific routes - these are only accessible if the user is an admin.
+            // Note: AdminRoute is a sibling to the TwoFARoute, as admins don't necessarily
+            // need to pass 2FA to access admin-specific pages, depending on your policy.
+            // If admins also need 2FA, nest AdminRoute inside TwoFARoute.
+            {
+              element: <AdminRoute />, // This guard ensures only admins can reach these paths
+              children: [
+                { path: "admin", element: <AdminDashboard /> },
+                { path: "admin/chat", element: <AdminChatComponent /> },
+              ],
+            },
           ],
         },
       ],
     },
     {
-      path: "*", // Catch-all for undefined routes
-      element: <Navigate to="/" replace />,
+      path: "*", // Catch-all for any unmatched paths
+      element: <Navigate to="/" replace />, // Redirect to home, which then handles auth status
     },
   ]);
 
@@ -183,7 +209,7 @@ const AppRoutes = () => {
   );
 };
 
-// --- App ---
+// --- Main App Component ---
 const App = () => (
   <AuthProvider>
     <AppRoutes />
