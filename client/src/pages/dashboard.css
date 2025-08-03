@@ -209,6 +209,11 @@ body {
 
 .welcome-text {
   flex: 1;
+  /* Make welcome-text a flex container to control its children on small screens */
+  display: flex; 
+  flex-direction: column; /* Stack children vertically on small screens */
+  align-items: flex-start; /* Align items to start by default */
+  /* Removed padding-right as username is no longer on the right */
 }
 
 .welcome-title {
@@ -217,6 +222,7 @@ body {
   color: var(--text-primary);
   margin-bottom: 4px;
   line-height: 1.1;
+  /* Removed padding-left: 150px; as username is now inline */
 }
 
 .username {
@@ -224,6 +230,14 @@ body {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  /* Reverted to inline positioning */
+  position: static; /* Let username flow naturally */
+  font-size: inherit; /* Inherit font size from parent */
+  font-weight: 700; /* Keep bold */
+  white-space: nowrap; /* Prevent wrapping if username is long */
+  z-index: auto; /* Revert z-index */
+  top: auto; /* Revert top positioning */
+  left: auto; /* Revert left positioning */
 }
 
 .welcome-subtitle {
@@ -753,6 +767,10 @@ tbody tr:last-child td {
     padding: 24px;
   }
   
+  .stat-value {
+    font-size: 1.6rem;
+  }
+  
   .plan-card {
     padding: 30px 24px;
   }
@@ -794,7 +812,7 @@ tbody tr:last-child td {
   }
   
   .stat-value {
-    font-size: 1.8rem;
+    font-size: 1.4rem;
   }
   
   .plan-title {
