@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { doc, setDoc, onSnapshot, collection, addDoc, Timestamp, getDoc } from 'firebase/firestore';
-import { useAuth } from '../contexts/AuthContext.jsx'; // Corrected import path with .jsx extension
+import { useAuth } from '../contexts/AuthContext.jsx';
 
 // Helper function to format numbers as currency
 const formatCurrency = (value) => {
@@ -13,21 +13,20 @@ const formatCurrency = (value) => {
   }).format(value);
 };
 
-// Define investment plans as constants (copied from DashboardPage.jsx for consistency)
+// Define investment plans as constants
 const INVESTMENT_PLANS = [
   {
     id: 'basic',
     name: 'Basic Plan',
-    dailyROI: 0.10, // 10% daily ROI
+    dailyROI: 0.10,
     minInvestment: 500,
     maxInvestment: 1000,
     description: 'A solid start for your investment journey.',
-    // icon and gradient are not directly used here but kept for completeness if needed later
   },
   {
     id: 'gold',
     name: 'Gold Plan',
-    dailyROI: 0.20, // 20% daily ROI
+    dailyROI: 0.20,
     minInvestment: 1001,
     maxInvestment: 5000,
     description: 'Accelerate your returns with higher potential.',
@@ -35,7 +34,7 @@ const INVESTMENT_PLANS = [
   {
     id: 'platinum',
     name: 'Platinum Plan',
-    dailyROI: 0.30, // 30% daily ROI
+    dailyROI: 0.30,
     minInvestment: 5001,
     maxInvestment: 100000,
     description: 'Maximize your earnings with our exclusive plan.',
@@ -45,10 +44,9 @@ const INVESTMENT_PLANS = [
 // Main DepositPage React Component
 const DepositPage = () => {
   const navigate = useNavigate();
-  // Consume Firebase state from AuthContext
   const { db, userId, isAuthReady, loading: authLoading, appId } = useAuth();
 
-  // Configuration for different investment plans (derived from INVESTMENT_PLANS)
+  // Configuration for different investment plans
   const planConfigs = INVESTMENT_PLANS.reduce((acc, plan) => {
     acc[plan.id] = {
       min: plan.minInvestment,
@@ -58,32 +56,25 @@ const DepositPage = () => {
     return acc;
   }, {});
 
-
   // Form and UI states
   const [formData, setFormData] = useState({
-    plan: 'basic', // Default to basic plan
+    plan: 'basic',
     amount: ''
   });
 
-  // Initialize minAmount and maxAmount based on the default plan
   const [minAmount, setMinAmount] = useState(planConfigs[formData.plan].min);
   const [maxAmount, setMaxAmount] = useState(planConfigs[formData.plan].max);
-
-  const [loading, setLoading] = useState(true); // Local loading for this page
+  const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [activeTab, setActiveTab] = useState('instructions'); // New state for tabs
 
-
-  // Fixed wallet address for demonstration purposes
+  // Fixed wallet address
   const walletAddress = 'bc1qg9a93teaqcyw7v4f60j69djz9sxny8nmf0w2zf';
+  const qrCodeImageUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent(walletAddress);
 
-  // Direct link to a sample QR code image (replace with your actual QR code image URL)
-  // This example QR code links to https://example.com
-  const qrCodeImageUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=190x190&data=https://example.com';
-
-
-  // Effect to manage initial loading state and ensure dashboard data exists
+  // Effect to manage initial loading state
   useEffect(() => {
     if (authLoading || !isAuthReady) {
       setLoading(true);
@@ -93,13 +84,11 @@ const DepositPage = () => {
     if (db && userId && appId) {
       const userDashboardDocRef = doc(db, `artifacts/${appId}/users/${userId}/dashboardData`, 'data');
 
-      // Check if dashboard data exists, if not, initialize it
       const checkAndInitializeDashboard = async () => {
         try {
           const docSnap = await getDoc(userDashboardDocRef);
           if (!docSnap.exists()) {
             console.log("DepositPage: No dashboard data found for user. Initializing with default.");
-            // Initialize with default values, transactions array is NOT part of this document anymore
             await setDoc(userDashboardDocRef, { balance: 0.00, dailyEarnings: 0.00, totalInvested: 0.00 });
           }
         } catch (e) {
@@ -111,63 +100,62 @@ const DepositPage = () => {
       };
       checkAndInitializeDashboard();
     } else {
-      // If db, userId, or appId are not yet available, keep loading
       setLoading(true);
     }
   }, [db, userId, appId, isAuthReady, authLoading]);
 
-
-  // --- Effect to update min/max amounts when selected plan changes ---
+  // Effect to update min/max amounts when selected plan changes
   useEffect(() => {
-    // Get min/max from the selected plan configuration
     const { min, max } = planConfigs[formData.plan];
     setMinAmount(min);
     setMaxAmount(max);
-    // Re-validate the amount if it's already entered to show immediate feedback
     if (formData.amount) {
       validateAmount(formData.amount, min, max);
     }
-  }, [formData.plan, formData.amount]); // Re-run when plan or amount changes
+  }, [formData.plan, formData.amount]);
 
-  // --- Amount validation function ---
+  // Amount validation function
   const validateAmount = (amount, min, max) => {
     const num = parseFloat(amount);
-    // Check if the input is a valid number
     if (isNaN(num)) {
       setError('Please enter a valid number.');
       return false;
     }
 
-    // Check if the amount is within the allowed range for the selected plan
     if (num < min || (max !== Infinity && num > max)) {
       setError(`Please enter an amount between $${min}${max === Infinity ? '+' : ` - $${max}`} for the selected plan.`);
       return false;
     }
 
-    setError(''); // Clear error if validation passes
+    setError('');
     return true;
   };
 
-  // --- Handle form input changes ---
+  // Handle form input changes
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  // --- Handle copying wallet address to clipboard ---
+  // Handle copying wallet address to clipboard
   const copyWallet = () => {
-    const tempInput = document.createElement('textarea');
-    tempInput.value = walletAddress;
-    document.body.appendChild(tempInput);
-    tempInput.select();
-    document.execCommand('copy');
-    document.body.removeChild(tempInput);
-
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    navigator.clipboard.writeText(walletAddress).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {
+      // Fallback for older browsers
+      const tempInput = document.createElement('textarea');
+      tempInput.value = walletAddress;
+      document.body.appendChild(tempInput);
+      tempInput.select();
+      document.execCommand('copy');
+      document.body.removeChild(tempInput);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
   };
 
-  // --- Handle deposit form submission ---
+  // Handle deposit form submission
   const handleDeposit = async (e) => {
     e.preventDefault();
 
@@ -196,27 +184,18 @@ const DepositPage = () => {
         plan: formData.plan,
         walletAddress: walletAddress,
         currency: 'USD',
-        status: 'pending', // Deposits require admin approval
+        status: 'pending',
         timestamp: Timestamp.now(),
         userId: userId,
       };
 
-      console.log("DepositPage: Attempting to add new deposit transaction:", newTransaction);
-      console.log("DepositPage: To collection path:", `artifacts/${appId}/users/${userId}/transactions`);
-
-      // Use addDoc to automatically generate a new document ID for the transaction
       await addDoc(transactionsCollectionRef, newTransaction);
 
-      // MODIFIED: Update the currentInvestment in the dashboardData document
-      // This ensures the "Active Plan" card on the dashboard reflects the latest deposit's plan.
       const selectedPlanDetails = INVESTMENT_PLANS.find(p => p.id === formData.plan);
       if (selectedPlanDetails) {
         await setDoc(userDashboardDocRef, {
-          currentInvestment: selectedPlanDetails // Set the entire plan object
-        }, { merge: true }); // Use merge: true to only update this field
-        console.log("DepositPage: Updated currentInvestment in dashboardData:", selectedPlanDetails);
-      } else {
-        console.warn("DepositPage: Could not find selected plan details for currentInvestment update.");
+          currentInvestment: selectedPlanDetails
+        }, { merge: true });
       }
 
       setSuccess('Deposit recorded successfully! It is now pending admin approval.');
@@ -234,328 +213,531 @@ const DepositPage = () => {
     }
   };
 
-  // --- Loading State UI ---
+  // Loading State UI
   if (loading) {
     return (
       <div className="loading-page">
+        <div className="loading-spinner"></div>
         <p className="loading-text">Loading deposit page...</p>
-        {/* Spinner and styles are expected to be defined in Dashboard.css or global styles */}
       </div>
     );
   }
 
-  // --- Main Deposit Page UI ---
+  // Main Deposit Page UI
   return (
     <div className="deposit-page-container">
-      {/* Embedded CSS for styling */}
       <style>
         {`
-        /* Styles for the entire page container */
         .deposit-page-container {
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 1rem;
-            box-sizing: border-box;
-            font-family: 'Inter', sans-serif; /* Ensure font for the container */
-            background-color: #f8fafc; /* Light gray background */
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 1.5rem;
+          box-sizing: border-box;
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          background: linear-gradient(135deg, #fefdffff 0%, #f6f5f7ff 100%);
         }
 
-        /* Styles for the main deposit card */
         .deposit-card {
-            background-color: #ffffff;
-            border-radius: 0.75rem;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-            padding: 2.5rem; /* Increased padding */
-            max-width: 36rem; /* Increased max-width for a larger feel */
-            width: 100%;
-            border: 1px solid #e2e8f0;
-            box-sizing: border-box;
+          background-color: #ffffff;
+          border-radius: 1rem;
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+          padding: 3rem;
+          max-width: 42rem;
+          width: 100%;
+          border: 1px solid #e2e8f0;
+          box-sizing: border-box;
+          position: relative;
+          overflow: hidden;
+        }
+
+        .deposit-card::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 4px;
+          background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
         }
 
         .deposit-card h2 {
-            font-size: 2rem; /* Slightly larger heading */
-            font-weight: 700;
-            color: #1a202c;
-            margin-bottom: 1.5rem;
-            text-align: center;
+          font-size: 2.25rem;
+          font-weight: 700;
+          color: #1a202c;
+          margin-bottom: 0.5rem;
+          text-align: center;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
         }
 
-        .deposit-card .card-description {
-            text-align: center;
-            color: #4a5568;
-            margin-bottom: 2rem;
+        .card-description {
+          text-align: center;
+          color: #64748b;
+          margin-bottom: 2.5rem;
+          font-size: 1.1rem;
+          line-height: 1.6;
         }
 
-        /* Styles for messages (error/success) */
         .message {
-            padding: 0.75rem 1rem;
-            border-width: 1px;
-            border-radius: 0.375rem;
-            margin-bottom: 1rem;
-            font-size: 0.875rem;
+          padding: 1rem 1.25rem;
+          border-radius: 0.75rem;
+          margin-bottom: 1.5rem;
+          font-size: 0.95rem;
+          font-weight: 500;
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
         }
 
         .error-message {
-            background-color: #fee2e2;
-            border-color: #ef4444;
-            color: #b91c1c;
+          background-color: #fef2f2;
+          border: 1px solid #fecaca;
+          color: #dc2626;
         }
 
         .success-message {
-            background-color: #d1fae5;
-            border-color: #34d399;
-            color: #065f46;
+          background-color: #f0fdf4;
+          border: 1px solid #bbf7d0;
+          color: #16a34a;
         }
 
-        /* Styles for form elements */
         .deposit-form {
-            display: flex;
-            flex-direction: column;
-            gap: 1.5rem;
+          display: flex;
+          flex-direction: column;
+          gap: 2rem;
         }
 
         .form-group label {
-            display: block;
-            font-size: 0.9rem; /* Slightly larger label font */
-            font-weight: 500;
-            color: #4a5568;
-            margin-bottom: 0.35rem; /* Adjusted margin */
+          display: block;
+          font-size: 1rem;
+          font-weight: 600;
+          color: #374151;
+          margin-bottom: 0.5rem;
         }
 
         .input-field {
-            display: block;
-            width: 100%;
-            padding: 0.6rem 0.75rem; /* Slightly increased padding */
-            border: 1px solid #d2d6dc;
-            border-radius: 0.375rem;
-            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-            outline: none;
-            font-size: 0.9rem; /* Slightly larger input font */
-            transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
-            box-sizing: border-box;
+          display: block;
+          width: 100%;
+          padding: 0.875rem 1rem;
+          border: 2px solid #e5e7eb;
+          border-radius: 0.75rem;
+          box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+          outline: none;
+          font-size: 1rem;
+          transition: all 0.2s ease-in-out;
+          box-sizing: border-box;
+          background-color: #fafafa;
         }
 
         .input-field:focus {
-            border-color: #8b5cf6;
-            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.5);
+          border-color: #667eea;
+          box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+          background-color: #ffffff;
         }
 
         .input-icon-left {
-            position: relative;
+          position: relative;
         }
 
         .input-icon-left .icon {
-            position: absolute;
-            top: 0;
-            left: 0;
-            display: flex;
-            align-items: center;
-            padding-left: 0.75rem;
-            height: 100%;
-            color: #718096;
-            font-size: 0.9rem; /* Match input font size */
-            pointer-events: none;
+          position: absolute;
+          top: 0;
+          left: 0;
+          display: flex;
+          align-items: center;
+          padding-left: 1rem;
+          height: 100%;
+          color: #6b7280;
+          font-size: 1rem;
+          font-weight: 600;
+          pointer-events: none;
+          z-index: 1;
         }
 
         .input-icon-left .input-field {
-            padding-left: 1.9rem; /* Adjust padding for icon */
+          padding-left: 2.25rem;
         }
 
         .form-description {
-            margin-top: 0.5rem;
-            font-size: 0.875rem;
-            color: #718096;
+          margin-top: 0.5rem;
+          font-size: 0.9rem;
+          color: #6b7280;
+          font-style: italic;
         }
 
-        /* Styles for wallet section */
+        .tabs-container {
+          margin-top: 2rem;
+          border: 1px solid #e5e7eb;
+          border-radius: 1rem;
+          overflow: hidden;
+          background-color: #fafafa;
+        }
+
+        .tabs-header {
+          display: flex;
+          background-color: #f8fafc;
+          border-bottom: 1px solid #e5e7eb;
+        }
+
+        .tab-button {
+          flex: 1;
+          padding: 1rem 1.5rem;
+          background: none;
+          border: none;
+          cursor: pointer;
+          font-weight: 600;
+          font-size: 1rem;
+          transition: all 0.2s ease-in-out;
+          color: #6b7280;
+          position: relative;
+        }
+
+        .tab-button.active {
+          color: #667eea;
+          background-color: #ffffff;
+        }
+
+        .tab-button.active::after {
+          content: '';
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: 3px;
+          background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .tab-button:hover:not(.active) {
+          background-color: #f1f5f9;
+          color: #374151;
+        }
+
+        .tab-content {
+          padding: 2rem;
+          background-color: #ffffff;
+        }
+
+        .cashapp-instructions {
+          display: flex;
+          flex-direction: column;
+          gap: 1.5rem;
+        }
+
+        .instruction-step {
+          display: flex;
+          align-items: flex-start;
+          gap: 1rem;
+          padding: 1.25rem;
+          background-color: #f8fafc;
+          border-radius: 0.75rem;
+          border-left: 4px solid #667eea;
+        }
+
+        .step-number {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          width: 2rem;
+          height: 2rem;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 700;
+          font-size: 0.875rem;
+          flex-shrink: 0;
+          margin-top: 0.125rem;
+        }
+
+        .step-content h4 {
+          margin: 0 0 0.5rem 0;
+          font-size: 1.1rem;
+          font-weight: 600;
+          color: #1f2937;
+        }
+
+        .step-content p {
+          margin: 0;
+          color: #4b5563;
+          line-height: 1.6;
+        }
+
+        .highlight-box {
+          background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+          border: 1px solid #f59e0b;
+          border-radius: 0.75rem;
+          padding: 1.25rem;
+          margin: 1.5rem 0;
+        }
+
+        .highlight-box h4 {
+          margin: 0 0 0.75rem 0;
+          color: #92400e;
+          font-weight: 700;
+          font-size: 1.1rem;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .highlight-box p {
+          margin: 0;
+          color: #92400e;
+        }
+
         .wallet-section {
-            background-color: #f8fafc;
-            padding: 1.8rem; /* Increased padding */
-            border-radius: 0.5rem;
-            border: 1px solid #e2e8f0;
-            margin-top: 1.8rem; /* Space above this section */
+          background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+          padding: 2rem;
+          border-radius: 1rem;
+          border: 1px solid #bae6fd;
         }
 
         .wallet-section h3 {
-            font-size: 1.35rem; /* Slightly larger heading */
-            font-weight: 600;
-            color: #2d3748;
-            margin-bottom: 1.2rem; /* Adjusted margin */
-            text-align: center;
+          font-size: 1.5rem;
+          font-weight: 700;
+          color: #0369a1;
+          margin-bottom: 1.5rem;
+          text-align: center;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
         }
 
         .wallet-content {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 1.2rem; /* Increased space between children */
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 1.5rem;
         }
 
         .qr-container {
-            background-color: #ffffff;
-            padding: 0.75rem; /* Increased padding around QR */
-            border-radius: 0.5rem;
-            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+          background-color: #ffffff;
+          padding: 1rem;
+          border-radius: 1rem;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+          border: 2px solid #e0f2fe;
         }
 
         .qr-code-image {
-            width: 190px; /* Slightly larger QR code */
-            height: 190px;
-            border-radius: 0.5rem;
+          width: 220px;
+          height: 220px;
+          border-radius: 0.5rem;
+          display: block;
         }
 
         .wallet-details {
-            text-align: center;
-            width: 100%;
+          text-align: center;
+          width: 100%;
         }
 
         .wallet-address-display {
-            background-color: #f7fafc;
-            border-radius: 0.375rem;
-            padding: 0.6rem 1.1rem; /* Adjusted padding */
-            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
-            font-size: 0.9rem; /* Slightly larger font */
-            color: #2d3748;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            word-break: break-all;
+          background-color: #ffffff;
+          border: 2px solid #e0f2fe;
+          border-radius: 0.75rem;
+          padding: 1rem 1.25rem;
+          font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+          font-size: 0.95rem;
+          color: #1e293b;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          word-break: break-all;
+          margin-bottom: 1rem;
         }
 
         .copy-button {
-            margin-left: 0.8rem; /* Adjusted margin */
-            display: inline-flex;
-            align-items: center;
-            padding: 0.4rem 0.8rem; /* Adjusted padding */
-            border: 1px solid transparent;
-            font-size: 0.8rem; /* Slightly larger font */
-            font-weight: 500;
-            border-radius: 9999px;
-            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-            color: #6b46c1;
-            background-color: #ede9fe;
-            cursor: pointer;
-            transition: background-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+          margin-left: 1rem;
+          display: inline-flex;
+          align-items: center;
+          padding: 0.5rem 1rem;
+          border: none;
+          font-size: 0.875rem;
+          font-weight: 600;
+          border-radius: 0.5rem;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          color: #ffffff;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          cursor: pointer;
+          transition: all 0.2s ease-in-out;
+          flex-shrink: 0;
         }
 
         .copy-button:hover {
-            background-color: #ddd6fe;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
         }
 
-        .copy-button:focus {
-            outline: none;
-            box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #8b5cf6;
+        .copy-button:active {
+          transform: translateY(0);
         }
 
         .wallet-instructions {
-            margin-top: 0.8rem; /* Adjusted margin */
-            font-size: 0.9rem; /* Slightly larger font */
-            color: #4a5568;
+          font-size: 1rem;
+          color: #475569;
+          line-height: 1.6;
+          margin-bottom: 1rem;
         }
 
         .wallet-instructions strong {
-            font-weight: 700;
+          font-weight: 700;
+          color: #0369a1;
         }
 
         .approval-note {
-            margin-top: 1.2rem; /* Adjusted margin */
-            padding: 0.8rem; /* Adjusted padding */
-            background-color: #fffbeb;
-            border: 1px solid #fde68a;
-            color: #92400e;
-            border-radius: 0.5rem;
-            font-size: 0.9rem; /* Slightly larger font */
+          background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+          border: 1px solid #f59e0b;
+          color: #92400e;
+          border-radius: 0.75rem;
+          padding: 1.25rem;
+          font-size: 0.95rem;
+          margin-top: 1.5rem;
         }
 
         .approval-note strong {
-            font-weight: 700;
+          font-weight: 700;
         }
 
-        /* Styles for buttons */
         .button-primary {
-            width: 100%;
-            display: flex;
-            justify-content: center;
-            padding: 0.85rem 1.2rem; /* Increased padding */
-            border: 1px solid transparent;
-            border-radius: 0.375rem;
-            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-            font-size: 1.2rem; /* Slightly larger font */
-            font-weight: 500;
-            color: #ffffff;
-            background-color: #7c3aed;
-            cursor: pointer;
-            transition: background-color 0.15s ease-in-out, opacity 0.15s ease-in-out;
+          width: 100%;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          padding: 1rem 1.5rem;
+          border: none;
+          border-radius: 0.75rem;
+          box-shadow: 0 4px 14px 0 rgba(102, 126, 234, 0.39);
+          font-size: 1.1rem;
+          font-weight: 600;
+          color: #ffffff;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          cursor: pointer;
+          transition: all 0.2s ease-in-out;
+          margin-top: 1rem;
         }
 
-        .button-primary:hover {
-            background-color: #6d28d9;
+        .button-primary:hover:not(.button-disabled) {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 20px 0 rgba(102, 126, 234, 0.4);
         }
 
-        .button-primary:focus {
-            outline: none;
-            box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #8b5cf6;
+        .button-primary:active:not(.button-disabled) {
+          transform: translateY(0);
         }
 
         .button-primary.button-disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
+          opacity: 0.6;
+          cursor: not-allowed;
         }
 
         .button-secondary {
-            width: 100%;
-            display: flex;
-            justify-content: center;
-            padding: 0.6rem 1rem; /* Slightly increased padding */
-            border: 1px solid transparent;
-            border-radius: 0.375rem;
-            font-size: 0.9rem; /* Slightly larger font */
-            font-weight: 500;
-            color: #7c3aed;
-            background-color: #f5f3ff;
-            cursor: pointer;
-            transition: background-color 0.15s ease-in-out;
-            margin-top: 1.2rem; /* Increased space from the primary button */
+          width: 100%;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          padding: 0.875rem 1.25rem;
+          border: 2px solid #e5e7eb;
+          border-radius: 0.75rem;
+          font-size: 1rem;
+          font-weight: 600;
+          color: #6b7280;
+          background-color: #ffffff;
+          cursor: pointer;
+          transition: all 0.2s ease-in-out;
+          margin-top: 1rem;
         }
 
         .button-secondary:hover {
-            background-color: #ede9fe;
+          border-color: #667eea;
+          color: #667eea;
+          background-color: #f8fafc;
         }
 
-        .button-secondary:focus {
-            outline: none;
-            box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #8b5cf6;
-        }
-
-        /* Styles for loading state */
         .loading-page {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            background-color: #f8fafc;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          align-items: center;
+          min-height: 100vh;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          gap: 1rem;
+        }
+
+        .loading-spinner {
+          width: 3rem;
+          height: 3rem;
+          border: 4px solid #ffffff20;
+          border-top: 4px solid #ffffff;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
         }
 
         .loading-text {
-            color: #4a5568;
+          color: #ffffff;
+          font-size: 1.1rem;
+          font-weight: 500;
+        }
+
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+
+        .cashapp-logo {
+          color: #00d632;
+          font-weight: 700;
+        }
+
+        .bitcoin-icon {
+          color: #f7931a;
+        }
+
+        @media (max-width: 768px) {
+          .deposit-card {
+            margin: 1rem;
+            padding: 2rem;
+          }
+          
+          .tabs-header {
+            flex-direction: column;
+          }
+          
+          .wallet-address-display {
+            flex-direction: column;
+            gap: 1rem;
+          }
+          
+          .copy-button {
+            margin-left: 0;
+            width: 100%;
+          }
         }
         `}
       </style>
 
       <div className="deposit-card">
-        <h2>Deposit Funds</h2>
+        <h2>💰 Fund Your Investment</h2>
         <p className="card-description">
-          Select your investment plan and enter the amount. Your deposit will be pending until approved.
+          Choose your investment plan and follow our simple funding process using CashApp for secure Bitcoin transactions.
         </p>
 
-        {error && <div className="message error-message" role="alert">{error}</div>}
-        {success && <div className="message success-message" role="alert">{success}</div>}
+        {error && (
+          <div className="message error-message" role="alert">
+            ⚠️ {error}
+          </div>
+        )}
+        {success && (
+          <div className="message success-message" role="alert">
+            ✅ {success}
+          </div>
+        )}
 
         <form className="deposit-form" onSubmit={handleDeposit}>
           <div className="form-group">
-            <label htmlFor="plan">Investment Plan:</label>
+            <label htmlFor="plan">📊 Investment Plan:</label>
             <select
               id="plan"
               name="plan"
@@ -571,12 +753,12 @@ const DepositPage = () => {
               ))}
             </select>
             <p id="plan-description" className="form-description">
-              Select the investment plan that meets your financial goals.
+              Select the investment plan that aligns with your financial goals and risk tolerance.
             </p>
           </div>
 
           <div className="form-group">
-            <label htmlFor="amount">Amount (USD):</label>
+            <label htmlFor="amount">💵 Investment Amount (USD):</label>
             <div className="input-icon-left">
               <span className="icon">$</span>
               <input
@@ -592,6 +774,7 @@ const DepositPage = () => {
                 className="input-field"
                 aria-describedby="amount-description"
                 disabled={loading}
+                placeholder="Enter amount"
               />
             </div>
             <p id="amount-description" className="form-description">
@@ -599,40 +782,117 @@ const DepositPage = () => {
             </p>
           </div>
 
-          <div className="wallet-section">
-            <h3>Transfer to Wallet Address</h3>
-            <div className="wallet-content">
-              <div className="qr-container">
-                {/* Replace the src below with the direct URL to your QR code image */}
-                <img
-                  src={qrCodeImageUrl}
-                  alt="QR Code for Wallet Address"
-                  className="qr-code-image"
-                />
-              </div>
-              <div className="wallet-details">
-                <div className="wallet-address-display">
-                  <code>{walletAddress}</code>
-                  <button
-                    type="button"
-                    className="copy-button"
-                    onClick={copyWallet}
-                    aria-label="Copy wallet address"
-                  >
-                    {copied ? 'Copied!' : 'Copy'}
-                  </button>
+          <div className="tabs-container">
+            <div className="tabs-header">
+              <button
+                type="button"
+                className={`tab-button ${activeTab === 'instructions' ? 'active' : ''}`}
+                onClick={() => setActiveTab('instructions')}
+              >
+                📱 CashApp Instructions
+              </button>
+              <button
+                type="button"
+                className={`tab-button ${activeTab === 'wallet' ? 'active' : ''}`}
+                onClick={() => setActiveTab('wallet')}
+              >
+                🔗 Wallet Details
+              </button>
+            </div>
+
+            <div className="tab-content">
+              {activeTab === 'instructions' && (
+                <div className="cashapp-instructions">
+                  <div className="highlight-box">
+                    <h4>🚀 Why Use <span className="cashapp-logo">CashApp</span>?</h4>
+                    <p>CashApp is the fastest and most secure way to buy Bitcoin instantly. No complicated exchanges or lengthy verification processes!</p>
+                  </div>
+
+                  <div className="instruction-step">
+                    <div className="step-number">1</div>
+                    <div className="step-content">
+                      <h4>Download CashApp</h4>
+                      <p>Download the official CashApp from your device's app store. It's free and takes less than 2 minutes to set up your account.</p>
+                    </div>
+                  </div>
+
+                  <div className="instruction-step">
+                    <div className="step-number">2</div>
+                    <div className="step-content">
+                      <h4>Verify Your Account</h4>
+                      <p>Complete the quick verification process by linking your bank account or debit card. This ensures secure transactions and instant Bitcoin purchases.</p>
+                    </div>
+                  </div>
+
+                  <div className="instruction-step">
+                    <div className="step-number">3</div>
+                    <div className="step-content">
+                      <h4>Buy Bitcoin <span className="bitcoin-icon">₿</span></h4>
+                      <p>Tap the Bitcoin tab in CashApp, then "Buy Bitcoin". Enter the exact amount from your investment above (${formData.amount || 'XXX'}) and confirm your purchase.</p>
+                    </div>
+                  </div>
+
+                  <div className="instruction-step">
+                    <div className="step-number">4</div>
+                    <div className="step-content">
+                      <h4>Send to Our Wallet</h4>
+                      <p>In CashApp, tap "Withdraw Bitcoin", then "Send Bitcoin". Copy our wallet address from the "Wallet Details" tab and paste it as the destination.</p>
+                    </div>
+                  </div>
+
+                  <div className="instruction-step">
+                    <div className="step-number">5</div>
+                    <div className="step-content">
+                      <h4>Confirm Your Deposit</h4>
+                      <p>After sending the Bitcoin, return here and click "Confirm Deposit" below. Your transaction will be verified and credited to your account within 1-2 business days.</p>
+                    </div>
+                  </div>
+
+                  <div className="highlight-box">
+                    <h4>⚡ Pro Tips for Success</h4>
+                    <p>• Double-check the wallet address before sending<br/>
+                    • Keep your CashApp transaction receipt<br/>
+                    • Bitcoin transactions are irreversible, so accuracy is crucial<br/>
+                    • Contact support if you need any assistance</p>
+                  </div>
                 </div>
-                <p className="wallet-instructions">
-                  <strong>Important:</strong> Send the exact amount shown above to this wallet address.
-                  Double-check the address before sending funds.
-                </p>
-                <div className="approval-note">
-                  <p>
-                    <strong>Note:</strong> All deposits require admin approval before being added to your balance.
-                    This usually takes 1-2 business days.
-                  </p>
+              )}
+
+              {activeTab === 'wallet' && (
+                <div className="wallet-section">
+                  <h3>🏦 Bitcoin Wallet Address</h3>
+                  <div className="wallet-content">
+                    <div className="qr-container">
+                      <img
+                        src={qrCodeImageUrl}
+                        alt="Bitcoin Wallet QR Code"
+                        className="qr-code-image"
+                      />
+                    </div>
+                    <div className="wallet-details">
+                      <div className="wallet-address-display">
+                        <code>{walletAddress}</code>
+                        <button
+                          type="button"
+                          className="copy-button"
+                          onClick={copyWallet}
+                          aria-label="Copy wallet address"
+                        >
+                          {copied ? '✅ Copied!' : '📋 Copy'}
+                        </button>
+                      </div>
+                      <p className="wallet-instructions">
+                        <strong>Critical:</strong> This is your unique Bitcoin wallet address. Copy this exact address and paste it into CashApp when sending your Bitcoin. Any errors in the address will result in permanent loss of funds.
+                      </p>
+                      <div className="approval-note">
+                        <p>
+                          <strong>⏱️ Processing Time:</strong> All deposits require verification and approval by our financial team. This process typically takes 1-2 business days to ensure security and compliance.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
 
@@ -640,13 +900,14 @@ const DepositPage = () => {
             <button
               type="submit"
               disabled={loading || !!error || !formData.amount}
-              className={`button-primary ${loading ? 'button-disabled' : ''}`}
+              className={`button-primary ${loading || !!error || !formData.amount ? 'button-disabled' : ''}`}
             >
-              {loading ? 'Processing...' : 'Confirm Deposit'}
+              {loading ? '🔄 Processing...' : '✅ Confirm Deposit'}
             </button>
           </div>
 
           <button
+            type="button"
             onClick={() => navigate('/dashboard')}
             className="button-secondary"
           >

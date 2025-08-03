@@ -104,6 +104,12 @@ const HomePage = () => {
                 Start Investing
               </Link>
             </div>
+            // Add this to your HomePage component
+<div className="language-selector">
+  <div className="usa-flag"></div>
+  <span className="language-text">EN</span>
+  <span className="dropdown-arrow">▼</span>
+</div>
             <div className="hero-metrics">
               <div className="metric">
                 <span className="metric-value">$2.1M+</span>

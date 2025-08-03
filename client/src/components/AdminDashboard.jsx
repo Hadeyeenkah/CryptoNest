@@ -1,4 +1,3 @@
-// src/pages/Admin.jsx
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   collection,
@@ -13,64 +12,66 @@ import {
   setDoc,
   runTransaction,
   where,
-  orderBy, // ✅ Ensure orderBy is imported
+  orderBy,
   limit,
-  serverTimestamp, // Import serverTimestamp
+  serverTimestamp,
+  addDoc,
 } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth, db } from '../firebase.js'; // Ensure db is imported from firebase.js
+import { auth, db } from '../firebase.js';
 
-import './Admin.css'; // Make sure this path is correct
+import './Admin.css';
 
 // Import AdminChatComponent
 import AdminChatComponent from '../components/AdminChatComponent';
 
-// Define INVESTMENT_PLANS (ensure this is either imported or defined consistently)
+// Define INVESTMENT_PLANS
 const INVESTMENT_PLANS = [
   { id: 'basic', name: 'Basic Plan', dailyROI: 0.01, minInvestment: 100, maxInvestment: 1000, description: 'Basic investment plan', gradient: 'linear-gradient(to right, #6a11cb 0%, #2575fc 100%)' },
   { id: 'silver', name: 'Silver Plan', dailyROI: 0.015, minInvestment: 1001, maxInvestment: 5000, description: 'Silver investment plan', gradient: 'linear-gradient(to right, #8e2de2 0%, #4a00e0 100%)' },
   { id: 'gold', name: 'Gold Plan', dailyROI: 0.02, minInvestment: 5001, maxInvestment: 10000, description: 'Gold investment plan', gradient: 'linear-gradient(to right, #f7b733 0%, #fc4a1a 100%)' },
-  // Add more plans as per your application
 ];
-
 
 const AdminDashboard = () => {
   const [user, loading, error] = useAuthState(auth);
   const [users, setUsers] = useState([]);
   const [transactions, setTransactions] = useState([]);
-  const [dataLoading, setDataLoading] = useState(true); // Manages initial load for data
-  const [isAdmin, setIsAdmin] = useState(false); // Manages admin status
+  const [dataLoading, setDataLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('pending'); // Default to pending transactions
+  const [filterStatus, setFilterStatus] = useState('pending');
+  const [showAddTransaction, setShowAddTransaction] = useState(false);
 
-  // --- State for Chat Feature ---
+  // Chat Feature State
   const [conversations, setConversations] = useState([]);
-  const [selectedUserForChat, setSelectedUserForChat] = useState(null); // Stores the full user object (with profile)
-  const adminId = 'admin'; // Consistent admin ID for chat messages
-  // --- END Chat State ---
+  const [selectedUserForChat, setSelectedUserForChat] = useState(null);
+  const adminId = 'admin';
 
-  const appId = 'cryptonest'; // Ensure this matches your Firebase setup
+  const appId = 'default-app-id';
 
-  // --- Effect to check and set admin status ---
+  // Track individual data fetching completion
+  const [usersFetched, setUsersFetched] = useState(false);
+  const [transactionsFetched, setTransactionsFetched] = useState(false);
+  const [conversationsFetched, setConversationsFetched] = useState(false);
+
+  // Check admin status
   useEffect(() => {
     const checkAdminStatus = async () => {
       if (!user) {
         setIsAdmin(false);
-        setDataLoading(false); // If no user, no data to load for admin
+        setDataLoading(false);
         return;
       }
 
       try {
-        // Attempt to get custom claims first
         const token = await user.getIdTokenResult();
         if (token.claims.isAdmin === true) {
           setIsAdmin(true);
-          return; // Exit if admin via claims
+          return;
         }
 
-        // Fallback: Check profile document if not admin via claims
         const userProfileRef = doc(db, `artifacts/${appId}/users/${user.uid}/profile/data`);
         const profileDoc = await getDoc(userProfileRef);
 
@@ -78,265 +79,280 @@ const AdminDashboard = () => {
           const profileData = profileDoc.data();
           setIsAdmin(profileData.isAdmin === true);
         } else {
-          setIsAdmin(false); // Profile doesn't exist, not an admin
+          setIsAdmin(false);
         }
       } catch (err) {
         console.error('Error checking admin status:', err);
-        setIsAdmin(false); // Assume not admin on error
-      } finally {
-        // Important: set dataLoading to false only after admin status is determined
-        // as subsequent data fetches depend on isAdmin
-        setDataLoading(false);
+        setIsAdmin(false);
       }
     };
 
-    // Only run if user changes or on initial load after auth state is known
-    if (!loading) { // Only check admin status once firebase auth state is resolved
+    if (!loading) {
       checkAdminStatus();
     }
-  }, [user, loading, appId]); // Depend on user and loading for auth state changes
+  }, [user, loading, appId]);
 
-  // --- Real-time fetch users with profile and dashboard data ---
+  // Fetch users using collectionGroup to find all profile documents
   useEffect(() => {
     if (!isAdmin) {
-        // If not admin, or admin check is still loading, do not attempt to fetch users
-        console.log("Not an admin or admin status still loading. Skipping user fetch.");
-        return;
+      console.log("Not an admin. Skipping user fetch.");
+      return;
     }
 
-    console.log("Admin confirmed. Fetching users...");
-    const usersColRef = collection(db, `artifacts/${appId}/users`);
+    console.log("Admin confirmed. Setting up real-time user listener using collectionGroup...");
+    
+    const profilesQuery = collectionGroup(db, 'profile');
 
     const unsubscribe = onSnapshot(
-      usersColRef,
+      profilesQuery,
       async (snapshot) => {
-        console.log("Users Snapshot received! Number of user docs:", snapshot.docs.length);
-        const usersList = [];
-        for (const userDoc of snapshot.docs) {
-          const userId = userDoc.id;
-          // console.log(`Processing userDoc.id: ${userId}`);
+        console.log("Profile documents snapshot received! Number of profile docs:", snapshot.docs.length);
+        
+        // Filter for only 'data' documents and from our specific app
+        const dataProfileDocs = snapshot.docs.filter(doc => {
+          const pathParts = doc.ref.path.split('/');
+          return doc.id === 'data' && pathParts[1] === appId && pathParts[0] === 'artifacts';
+        });
+
+        console.log(`Found ${dataProfileDocs.length} profile/data documents for app: ${appId}`);
+        
+        const userPromises = dataProfileDocs.map(async (profileDoc) => {
           try {
-            const profileRef = doc(db, `artifacts/${appId}/users/${userId}/profile/data`);
+            const pathParts = profileDoc.ref.path.split('/');
+            const userId = pathParts[3];
+
+            const profileData = profileDoc.data();
+            
+            // Fetch dashboard data for this user
             const dashboardRef = doc(db, `artifacts/${appId}/users/${userId}/dashboardData/data`);
-
-            const [profileDoc, dashboardDoc] = await Promise.all([
-              getDoc(profileRef),
-              getDoc(dashboardRef)
-            ]);
-
-            let profileData = {};
+            const dashboardDoc = await getDoc(dashboardRef);
+            
             let dashboardData = {};
-
-            if (profileDoc.exists()) {
-              profileData = profileDoc.data();
-            } else {
-              console.warn(`Profile/data document missing for user: ${userId}.`);
-            }
-
             if (dashboardDoc.exists()) {
               dashboardData = dashboardDoc.data();
-            } else {
-              console.warn(`DashboardData/data document missing for user: ${userId}.`);
             }
 
-            // Merge profile and dashboard data, prioritizing dashboard for financials
-            usersList.push({
+            return {
               id: userId,
               profile: {
-                // Default values in case profile/dashboard docs are missing or incomplete
                 email: profileData.email || 'N/A',
                 displayName: profileData.displayName || userId,
                 isAdmin: profileData.isAdmin || false,
-                createdAt: profileData.createdAt || null, // Firebase Timestamp
+                createdAt: profileData.createdAt || null,  
                 status: profileData.status || 'active',
                 balance: dashboardData.balance !== undefined ? dashboardData.balance : 0,
                 totalInvested: dashboardData.totalInvested !== undefined ? dashboardData.totalInvested : 0,
-                // Add any other specific profile/dashboard fields you need
+                currentInvestment: dashboardData.currentInvestment || null,
               },
-            });
+            };
           } catch (fetchErr) {
-            console.error(`Error fetching profile/dashboard for user ${userId}:`, fetchErr);
-            // Push a minimal user object even if fetch fails to avoid skipping the user entirely
-            usersList.push({
-              id: userId,
-              profile: {
-                email: 'Error fetching', displayName: 'Error fetching', isAdmin: false,
-                createdAt: null, balance: 0, totalInvested: 0, status: 'error'
-              }
-            });
+            console.error(`Error fetching data for user:`, fetchErr);
+            return null;
           }
-        }
+        });
+
+        const usersList = (await Promise.all(userPromises)).filter(user => user !== null);
+        console.log(`Successfully fetched ${usersList.length} users`);
+        
         setUsers(usersList);
-        // setDataLoading(false); // Keep dataLoading true until ALL initial fetches are done, or handle separately
+        setUsersFetched(true);
       },
       (err) => {
-        console.error('Error fetching real-time users from main collection:', err);
-        // setDataLoading(false);
+        console.error('Error fetching users via collectionGroup:', err);
+        setUsersFetched(true);
       }
     );
 
     return () => unsubscribe();
-  }, [isAdmin, appId]); // Depend on 'isAdmin' and 'appId'
+  }, [isAdmin, appId]);
 
-  // --- Real-time fetch for conversations ---
+  // Fetch conversations
   useEffect(() => {
     if (!isAdmin) return;
 
     const chatsColRef = collection(db, 'chats');
-    // Query to get conversations involving 'admin' or all conversations if 'admin' isn't explicitly in data
-    // Assuming 'userIds' array exists on conversation documents and contains 'admin' ID
     const q = query(chatsColRef, orderBy('lastMessageTimestamp', 'desc'));
 
     const unsubscribe = onSnapshot(q, async (snapshot) => {
       const convos = [];
       for (const docSnap of snapshot.docs) {
         const conversationData = docSnap.data();
-        const userIds = conversationData.userIds || []; // Ensure userIds exists
-        const participants = userIds.filter(id => id !== adminId); // Filter out the adminId
+        const userIds = conversationData.userIds || [];
+        const participants = userIds.filter(id => id !== adminId);
 
-        let userId = participants.length > 0 ? participants[0] : docSnap.id; // Get the user's ID
+        let userId = participants.length > 0 ? participants[0] : docSnap.id;
         if (userId.startsWith('user_')) {
-          userId = userId.substring(5); // Remove 'user_' prefix if present, to match actual UID
+          userId = userId.substring(5);
         }
 
-        let userName = userId; // Default to user ID
-        const userProfile = users.find(u => u.id === userId); // Find user from loaded users state
-        if (userProfile?.profile?.displayName) { // Use optional chaining for safety
-          userName = userProfile.profile.displayName;
-        } else if (userProfile?.profile?.email) {
+        let userName = userId;
+        if (usersFetched) {
+          const userProfile = users.find(u => u.id === userId);
+          if (userProfile?.profile?.displayName) {
+            userName = userProfile.profile.displayName;
+          } else if (userProfile?.profile?.email) {
             userName = userProfile.profile.email;
+          }
         }
 
         convos.push({
-          id: docSnap.id, // This is the conversationId (e.g., 'user_abc-admin')
-          userId: userId, // The specific user's raw UID involved in this chat
+          id: docSnap.id,
+          userId: userId,
           userName: userName,
           ...conversationData,
         });
       }
       setConversations(convos);
+      setConversationsFetched(true);
     }, (err) => {
-      console.error('Error fetching real-time conversations:', err);
+      console.error('Error fetching conversations:', err);
+      setConversationsFetched(true);
     });
 
     return () => unsubscribe();
-  }, [isAdmin, users]); // Depend on 'users' to get display names, also on isAdmin
+  }, [isAdmin, users, usersFetched]);
 
-  // Enhanced fetch transactions with user details
-  const fetchTransactions = useCallback(async () => {
-    if (!isAdmin) return;
-    try {
-      // Use collectionGroup to query across all 'transactions' subcollections
-      const transColRef = collectionGroup(db, 'transactions');
-      // ✅ NEW: Order by 'createdAt' in descending order to get latest transactions first
-      const q = query(transColRef, orderBy('createdAt', 'desc'));
-      const snapshot = await getDocs(q); // Use the query 'q' here
+  // Fetch transactions with real-time updates
+  useEffect(() => {
+    if (!isAdmin || !usersFetched) {
+      console.log("Not admin or users not fetched. Skipping transaction fetch.");
+      return;
+    }
 
+    console.log("Fetching transactions in real-time...");
+    const transColRef = collectionGroup(db, 'transactions');
+    const q = query(transColRef, orderBy('createdAt', 'desc'));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      console.log(`Transaction snapshot received! ${snapshot.docs.length} transactions found.`);
+      
       let transList = snapshot.docs.map((transDoc) => {
         const data = transDoc.data();
-        // Extract userId from the path: artifacts/{appId}/users/{userId}/transactions/{transactionId}
-        const userIdFromPath = transDoc.ref.path.split('/')[3];
+        const pathParts = transDoc.ref.path.split('/');
+        const userIdFromPath = pathParts[3];
+        
         return {
           id: transDoc.id,
-          ref: transDoc.ref, // Keep the reference for updates/deletes
+          ref: transDoc.ref,
           ...data,
           userId: userIdFromPath,
         };
       });
 
-      // Map users by ID for quick lookup to attach display names
+      // Filter transactions from our specific app
+      transList = transList.filter(trans => {
+        const pathParts = trans.ref.path.split('/');
+        return pathParts[1] === appId;
+      });
+
       const usersMap = new Map(users.map(u => [u.id, u.profile]));
 
       transList = transList.map(trans => ({
         ...trans,
         userName: usersMap.get(trans.userId)?.displayName || usersMap.get(trans.userId)?.email || trans.userId,
-        userProfile: usersMap.get(trans.userId) // Attach full user profile
+        userProfile: usersMap.get(trans.userId)
       }));
 
+      console.log(`Processed ${transList.length} transactions for app: ${appId}`);
       setTransactions(transList);
-    } catch (err) {
-      console.error('Error fetching transactions:', err.code, err.message);
-    }
-  }, [isAdmin, users, appId]); // Added isAdmin to dependencies
+      setTransactionsFetched(true);
+    }, (err) => {
+      console.error('Error fetching transactions:', err);
+      setTransactionsFetched(true);
+    });
 
+    return () => unsubscribe();
+  }, [isAdmin, users, usersFetched, appId]);
+
+  // Combined loading state
   useEffect(() => {
-    // Only fetch transactions if user is loaded, is admin, and users list has been populated
-    // This ensures that `users` array in `fetchTransactions` is not empty when used.
-    if (!loading && user && isAdmin && users.length > 0) {
-      fetchTransactions();
-    } else if (!loading && (!user || !isAdmin)) {
-      // If not authenticated or not admin, ensure dataLoading is false
-      // This path is hit after the initial isAdmin check in its useEffect
+    if (!loading && isAdmin && usersFetched && transactionsFetched && conversationsFetched) {
+      setDataLoading(false);
+    } else if (!loading && !isAdmin) {
+      setDataLoading(false);
     }
-  }, [user, loading, isAdmin, users.length, fetchTransactions]);
+  }, [loading, isAdmin, usersFetched, transactionsFetched, conversationsFetched]);
 
-
-  // Update user profile
+  // Enhanced user update with full editing capabilities
   const handleUpdateUser = async (userId, profileUpdates, dashboardUpdates) => {
     try {
       const userProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile/data`);
       const userDashboardRef = doc(db, `artifacts/${appId}/users/${userId}/dashboardData/data`);
 
       await runTransaction(db, async (transactionFirestore) => {
-        // Read current states for robust updates if needed, though not strictly required if overwriting
-        const currentProfileDoc = await transactionFirestore.get(userProfileRef);
-        const currentDashboardDoc = await transactionFirestore.get(userDashboardRef);
+        // Check if documents exist, create if they don't
+        const profileDoc = await transactionFirestore.get(userProfileRef);
+        const dashboardDoc = await transactionFirestore.get(userDashboardRef);
 
-        // Update user profile data
-        transactionFirestore.update(userProfileRef, {
-          ...profileUpdates,
-          updatedAt: serverTimestamp(), // Use serverTimestamp()
-        });
+        if (!profileDoc.exists()) {
+          transactionFirestore.set(userProfileRef, {
+            ...profileUpdates,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        } else {
+          transactionFirestore.update(userProfileRef, {
+            ...profileUpdates,
+            updatedAt: serverTimestamp(),
+          });
+        }
 
-        // Update user dashboard data
-        transactionFirestore.update(userDashboardRef, {
-          ...dashboardUpdates,
-          updatedAt: serverTimestamp(), // Use serverTimestamp()
-        });
+        if (!dashboardDoc.exists()) {
+          transactionFirestore.set(userDashboardRef, {
+            ...dashboardUpdates,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        } else {
+          transactionFirestore.update(userDashboardRef, {
+            ...dashboardUpdates,
+            updatedAt: serverTimestamp(),
+          });
+        }
       });
 
-      alert('User updated successfully');
-      // Re-fetch transactions to ensure associated user names are updated
-      fetchTransactions();
+      console.log('User updated successfully');
       setEditingUser(null);
+      
+      // Show success message
+      alert('User updated successfully!');
     } catch (err) {
-      console.error('Error updating user:', err.code, err.message);
+      console.error('Error updating user:', err);
       alert('Error updating user: ' + err.message);
     }
   };
 
-  // Delete user
+  // Delete user with all related data
   const handleDeleteUser = async (userId) => {
-    if (
-      window.confirm(
-        'Are you sure you want to delete this user? This will delete their profile and dashboard data. Transactions will remain but will no longer be linked to a profile. This action cannot be undone.'
-      )
-    ) {
+    if (window.confirm(`Are you sure you want to delete user ${userId}? This will delete all their data and cannot be undone.`)) {
       try {
+        // Delete profile and dashboard data
         const userProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile/data`);
         const userDashboardRef = doc(db, `artifacts/${appId}/users/${userId}/dashboardData/data`);
-        // Note: Deleting the parent user document (artifacts/{appId}/users/{userId})
-        // requires all its subcollections to be empty or a Cloud Function for recursive deletion.
-        // For client-side, we primarily delete the profile and dashboard data documents.
 
+        // Also delete all user's transactions
+        const userTransactions = transactions.filter(t => t.userId === userId);
+        
         await runTransaction(db, async (transactionFirestore) => {
-          // Delete profile and dashboard data documents
           transactionFirestore.delete(userProfileRef);
           transactionFirestore.delete(userDashboardRef);
+          
+          // Delete all user's transactions
+          userTransactions.forEach(trans => {
+            transactionFirestore.delete(trans.ref);
+          });
         });
 
-        alert('User profile and dashboard data deleted successfully.');
-        // No need to fetch users/transactions explicitly here as onSnapshot will update states
-        // fetchTransactions(); // May not be necessary due to onSnapshot, but can keep for explicit refresh
+        console.log('User and all related data deleted successfully.');
+        alert('User deleted successfully!');
       } catch (err) {
-        console.error('Error deleting user profile/dashboard data:', err.code, err.message);
+        console.error('Error deleting user:', err);
         alert('Error deleting user: ' + err.message);
       }
     }
   };
 
-
-  // NEW: Handle transaction approval/decline and update user balances
+  // Enhanced transaction approval/decline with real-time updates
   const handleApproveDeclineTransaction = async (transaction, actionType) => {
     const { ref: transRef, status: currentStatus, type, amount, userId, planId } = transaction;
 
@@ -357,18 +373,17 @@ const AdminDashboard = () => {
         if (!userProfileDoc.exists()) {
           throw new Error("User profile not found for transaction processing!");
         }
+        
         if (!userDashboardDoc.exists()) {
-          // If dashboard data doesn't exist, create it with initial zeros
           transactionFirestore.set(userDashboardRef, {
             balance: 0,
             totalInvested: 0,
             currentInvestment: null,
-            updatedAt: serverTimestamp(), // Use serverTimestamp()
-            createdAt: serverTimestamp(), // Use serverTimestamp()
+            updatedAt: serverTimestamp(),
+            createdAt: serverTimestamp(),
           });
         }
 
-        const userProfileData = userProfileDoc.data();
         const userDashboardData = userDashboardDoc.exists() ? userDashboardDoc.data() : { balance: 0, totalInvested: 0, currentInvestment: null };
 
         let updatedBalance = userDashboardData.balance || 0;
@@ -380,103 +395,123 @@ const AdminDashboard = () => {
             updatedBalance += amount;
           } else if (type === 'withdrawal') {
             if (updatedBalance < amount) {
-              throw new Error(`Insufficient balance for withdrawal of ${amount}. User balance: ${updatedBalance}`);
+              throw new Error(`Insufficient balance for withdrawal of $${amount}. User balance: $${updatedBalance}`);
             }
             updatedBalance -= amount;
           } else if (type === 'investment') {
             if (updatedBalance < amount) {
-              throw new Error(`Insufficient balance for investment of ${amount}. User balance: ${updatedBalance}`);
+              throw new Error(`Insufficient balance for investment of $${amount}. User balance: $${updatedBalance}`);
             }
             updatedBalance -= amount;
             updatedTotalInvested += amount;
-            // Set the active investment plan if it's an investment transaction
+            
             if (planId) {
-                const selectedPlan = INVESTMENT_PLANS.find(p => p.id === planId);
-                if (selectedPlan) {
-                    updatedCurrentInvestment = {
-                        id: selectedPlan.id,
-                        name: selectedPlan.name,
-                        dailyROI: selectedPlan.dailyROI,
-                        minInvestment: selectedPlan.minInvestment,
-                        maxInvestment: selectedPlan.maxInvestment,
-                        description: selectedPlan.description,
-                        gradient: selectedPlan.gradient,
-                        // You might want to add a 'startDate' for ROI calculation
-                        startDate: serverTimestamp(), // Use serverTimestamp()
-                        investedAmount: amount, // Store the amount invested in this plan instance
-                    };
-                } else {
-                    console.warn(`Investment plan with ID ${planId} not found.`);
-                }
+              const selectedPlan = INVESTMENT_PLANS.find(p => p.id === planId);
+              if (selectedPlan) {
+                updatedCurrentInvestment = {
+                  id: selectedPlan.id,
+                  name: selectedPlan.name,
+                  dailyROI: selectedPlan.dailyROI,
+                  minInvestment: selectedPlan.minInvestment,
+                  maxInvestment: selectedPlan.maxInvestment,
+                  description: selectedPlan.description,
+                  gradient: selectedPlan.gradient,
+                  startDate: serverTimestamp(),
+                  investedAmount: amount,
+                };
+              }
             }
+          } else if (type === 'roi') {
+            updatedBalance += amount;
           }
-          // Add logic for other transaction types like 'roi' if needed here
-          // For ROI transactions, you would typically increase `balance`
-          // else if (type === 'roi') {
-          //   updatedBalance += amount;
-          // }
         }
 
-        // Update transaction status
+        // Update transaction status with detailed approval info
         transactionFirestore.update(transRef, {
           status: newStatus,
-          updatedAt: serverTimestamp(), // Use serverTimestamp()
-          approvedBy: user.email || user.uid, // Store who approved it
-          approvedAt: serverTimestamp(), // Use serverTimestamp()
+          updatedAt: serverTimestamp(),
+          approvedBy: user.email || user.uid,
+          approvedAt: serverTimestamp(),
+          adminNotes: `${actionType === 'approve' ? 'Approved' : 'Declined'} by admin on ${new Date().toLocaleString()}`,
         });
 
-        // Update user's dashboard data (balance and totalInvested)
+        // Update user's dashboard data
         transactionFirestore.update(userDashboardRef, {
           balance: updatedBalance,
           totalInvested: updatedTotalInvested,
           currentInvestment: updatedCurrentInvestment,
-          updatedAt: serverTimestamp(), // Use serverTimestamp()
+          updatedAt: serverTimestamp(),
         });
 
-        // Also update the profile balance for consistency, though dashboardData is primary
+        // Keep profile balance in sync
         transactionFirestore.update(userProfileRef, {
-            balance: updatedBalance,
-            totalInvested: updatedTotalInvested, // Keep profile totalInvested in sync
-            updatedAt: serverTimestamp(), // Use serverTimestamp()
+          balance: updatedBalance,
+          totalInvested: updatedTotalInvested,
+          updatedAt: serverTimestamp(),
         });
-
       });
-      alert(`Transaction ${transaction.id} ${newStatus} successfully! User balances updated.`);
-      fetchTransactions(); // Refresh transactions after update
+
+      alert(`Transaction ${newStatus} successfully! User balances updated.`);
+      console.log(`Transaction ${transaction.id} ${newStatus} successfully!`);
     } catch (err) {
       console.error(`Error ${newStatus} transaction:`, err);
       alert(`Error ${newStatus} transaction: ` + err.message);
     }
   };
 
-
-  // Update transaction (for general edits, not approval/decline workflow)
+  // Enhanced transaction update
   const handleUpdateTransaction = async (transRef, newData) => {
     try {
       await updateDoc(transRef, {
         ...newData,
-        updatedAt: serverTimestamp(), // Use serverTimestamp()
+        updatedAt: serverTimestamp(),
+        lastModifiedBy: user.email || user.uid,
       });
-      alert('Transaction updated successfully');
-      fetchTransactions();
+      
+      console.log('Transaction updated successfully');
+      alert('Transaction updated successfully!');
       setEditingTransaction(null);
     } catch (err) {
-      console.error('Error updating transaction:', err.code, err.message);
+      console.error('Error updating transaction:', err);
       alert('Error updating transaction: ' + err.message);
     }
   };
 
   // Delete transaction
   const handleDeleteTransaction = async (transRef) => {
-    if (window.confirm('Are you sure you want to delete this transaction? This cannot be undone and will not reverse balance changes.')) {
+    if (window.confirm('Are you sure you want to delete this transaction? This action cannot be undone.')) {
       try {
         await deleteDoc(transRef);
-        alert('Transaction deleted successfully');
-        fetchTransactions(); // Refresh the list
+        console.log('Transaction deleted successfully');
+        alert('Transaction deleted successfully!');
       } catch (err) {
-        console.error('Error deleting transaction:', err.code, err.message);
+        console.error('Error deleting transaction:', err);
         alert('Error deleting transaction: ' + err.message);
       }
+    }
+  };
+
+  // Add new transaction for user
+  const handleAddTransaction = async (transactionData) => {
+    try {
+      const userTransactionsRef = collection(db, `artifacts/${appId}/users/${transactionData.userId}/transactions`);
+      
+      const newTransaction = {
+        ...transactionData,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        createdBy: user.email || user.uid,
+        status: 'pending', // All admin-created transactions start as pending
+      };
+
+      await addDoc(userTransactionsRef, newTransaction);
+      
+      console.log('Transaction added successfully');
+      alert('Transaction added successfully!');
+      setShowAddTransaction(false);
+    } catch (err) {
+      console.error('Error adding transaction:', err);
+      alert('Error adding transaction: ' + err.message);
     }
   };
 
@@ -497,7 +532,7 @@ const AdminDashboard = () => {
     return trans.status === filterStatus;
   });
 
-  // User Edit Form Component
+  // Enhanced User Edit Form with full capabilities
   const UserEditForm = ({ user, onSave, onCancel }) => {
     const [formData, setFormData] = useState({
       email: user.profile.email || '',
@@ -506,135 +541,143 @@ const AdminDashboard = () => {
       balance: user.profile.balance || 0,
       totalInvested: user.profile.totalInvested || 0,
       status: user.profile.status || 'active',
-      // Add other fields you want to edit
+      currentInvestment: user.profile.currentInvestment || null,
     });
 
-    // Fetch actual balance and totalInvested from dashboardData for display
-    // This is crucial to ensure the form shows the real-time balance from dashboardData
     useEffect(() => {
-        const fetchDashboardData = async () => {
-            if (db && user.id && appId) {
-                const dashboardRef = doc(db, `artifacts/${appId}/users/${user.id}/dashboardData/data`);
-                try {
-                    const docSnap = await getDoc(dashboardRef);
-                    if (docSnap.exists()) {
-                        const dashboardData = docSnap.data();
-                        setFormData(prev => ({
-                            ...prev,
-                            balance: dashboardData.balance !== undefined ? dashboardData.balance : 0,
-                            totalInvested: dashboardData.totalInvested !== undefined ? dashboardData.totalInvested : 0,
-                        }));
-                    } else {
-                        console.warn(`DashboardData document for ${user.id} not found when opening edit form.`);
-                    }
-                } catch (err) {
-                    console.error(`Error fetching dashboard data for user ${user.id}:`, err);
-                }
+      const fetchDashboardData = async () => {
+        if (db && user.id && appId) {
+          const dashboardRef = doc(db, `artifacts/${appId}/users/${user.id}/dashboardData/data`);
+          try {
+            const docSnap = await getDoc(dashboardRef);
+            if (docSnap.exists()) {
+              const dashboardData = docSnap.data();
+              setFormData(prev => ({
+                ...prev,
+                balance: dashboardData.balance !== undefined ? dashboardData.balance : 0,
+                totalInvested: dashboardData.totalInvested !== undefined ? dashboardData.totalInvested : 0,
+                currentInvestment: dashboardData.currentInvestment || null,
+              }));
             }
-        };
-        fetchDashboardData();
+          } catch (err) {
+            console.error(`Error fetching dashboard data for user ${user.id}:`, err);
+          }
+        }
+      };
+      fetchDashboardData();
     }, [user.id, db, appId]);
-
 
     const handleSubmit = (e) => {
       e.preventDefault();
       const profileUpdates = {
-          email: formData.email,
-          displayName: formData.displayName,
-          isAdmin: formData.isAdmin,
-          status: formData.status,
+        email: formData.email,
+        displayName: formData.displayName,
+        isAdmin: formData.isAdmin,
+        status: formData.status,
       };
       const dashboardUpdates = {
-          balance: formData.balance,
-          totalInvested: formData.totalInvested,
+        balance: formData.balance,
+        totalInvested: formData.totalInvested,
+        currentInvestment: formData.currentInvestment,
       };
       onSave(user.id, profileUpdates, dashboardUpdates);
     };
 
     return (
-      <form onSubmit={handleSubmit} className="edit-form">
-        <h4>Edit User: {formData.displayName || user.id}</h4>
-        <div className="form-group">
-          <label>User ID:</label>
-          <input type="text" value={user.id} disabled className="disabled-input" />
-        </div>
-        <div className="form-group">
-          <label>Email:</label>
-          <input
-            type="email"
-            value={formData.email}
-            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-            required
-          />
-        </div>
-        <div className="form-group">
-          <label>Display Name:</label>
-          <input
-            type="text"
-            value={formData.displayName}
-            onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
-          />
-        </div>
-        <div className="form-group">
-          <label>Balance:</label>
-          <input
-            type="number"
-            step="0.01"
-            value={formData.balance}
-            onChange={(e) => setFormData({ ...formData, balance: parseFloat(e.target.value) || 0 })}
-          />
-        </div>
-        <div className="form-group">
-          <label>Total Invested:</label>
-          <input
-            type="number"
-            step="0.01"
-            value={formData.totalInvested}
-            onChange={(e) => setFormData({ ...formData, totalInvested: parseFloat(e.target.value) || 0 })}
-          />
-        </div>
-        <div className="form-group">
-          <label>Status:</label>
-          <select
-            value={formData.status}
-            onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-          >
-            <option value="active">Active</option>
-            <option value="suspended">Suspended</option>
-            <option value="banned">Banned</option>
-          </select>
-        </div>
-        <div className="form-group">
-          <label>
-            <input
-              type="checkbox"
-              checked={formData.isAdmin}
-              onChange={(e) => setFormData({ ...formData, isAdmin: e.target.checked })}
-              disabled={user.id === auth.currentUser.uid} // Prevent admin from de-admining themselves
-            />
-            Admin Privileges
-          </label>
-        </div>
-        <div className="form-actions">
-          <button type="submit" className="save-btn">Save Changes</button>
-          <button type="button" onClick={onCancel} className="cancel-btn">
-            Cancel
-          </button>
-        </div>
-      </form>
+      <div className="edit-form-container">
+        <form onSubmit={handleSubmit} className="edit-form">
+          <h4>Edit User: {formData.displayName || user.id}</h4>
+          
+          <div className="form-row">
+            <div className="form-group">
+              <label>User ID:</label>
+              <input type="text" value={user.id} disabled className="disabled-input" />
+            </div>
+            <div className="form-group">
+              <label>Email:</label>
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                required
+              />
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label>Display Name:</label>
+              <input
+                type="text"
+                value={formData.displayName}
+                onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
+              />
+            </div>
+            <div className="form-group">
+              <label>Status:</label>
+              <select
+                value={formData.status}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+              >
+                <option value="active">Active</option>
+                <option value="suspended">Suspended</option>
+                <option value="banned">Banned</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label>Balance ($):</label>
+              <input
+                type="number"
+                step="0.01"
+                value={formData.balance}
+                onChange={(e) => setFormData({ ...formData, balance: parseFloat(e.target.value) || 0 })}
+              />
+            </div>
+            <div className="form-group">
+              <label>Total Invested ($):</label>
+              <input
+                type="number"
+                step="0.01"
+                value={formData.totalInvested}
+                onChange={(e) => setFormData({ ...formData, totalInvested: parseFloat(e.target.value) || 0 })}
+              />
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label>
+              <input
+                type="checkbox"
+                checked={formData.isAdmin}
+                onChange={(e) => setFormData({ ...formData, isAdmin: e.target.checked })}
+                disabled={user.id === auth.currentUser?.uid}
+              />
+              Admin Privileges
+            </label>
+          </div>
+
+          <div className="form-actions">
+            <button type="submit" className="save-btn">Save Changes</button>
+            <button type="button" onClick={onCancel} className="cancel-btn">Cancel</button>
+          </div>
+        </form>
+      </div>
     );
   };
 
-  // Transaction Edit Form Component
+  // Enhanced Transaction Edit Form
   const TransactionEditForm = ({ transaction, onSave, onCancel }) => {
     const [formData, setFormData] = useState({
       type: transaction.type || '',
       amount: transaction.amount || 0,
       status: transaction.status || 'pending',
       description: transaction.description || '',
-      // Add other fields you want to edit if they exist on your transaction documents
-      planId: transaction.planId || '', // For investment transactions
-      // paymentMethod: transaction.paymentMethod || '', etc.
+      planId: transaction.planId || '',
+      paymentMethod: transaction.paymentMethod || '',
+      adminNotes: transaction.adminNotes || '',
     });
 
     const handleSubmit = (e) => {
@@ -643,335 +686,580 @@ const AdminDashboard = () => {
     };
 
     return (
-      <form onSubmit={handleSubmit} className="edit-form">
-        <h4>Edit Transaction: {transaction.id}</h4>
-        <div className="form-group">
-          <label>User ID:</label>
-          <input type="text" value={transaction.userId} disabled className="disabled-input" />
-        </div>
-        <div className="form-group">
-          <label>Type:</label>
-          <select
-            value={formData.type}
-            onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-            required
-          >
-            <option value="">Select Type</option>
-            <option value="deposit">Deposit</option>
-            <option value="withdrawal">Withdrawal</option>
-            <option value="transfer">Transfer</option>
-            <option value="investment">Investment</option>
-            <option value="roi">ROI</option>
-            {/* Add other relevant transaction types */}
-          </select>
-        </div>
-        {formData.type === 'investment' && (
-          <div className="form-group">
-            <label>Plan ID:</label>
-            <select
-              value={formData.planId}
-              onChange={(e) => setFormData({ ...formData, planId: e.target.value })}
-              required
-            >
-              <option value="">Select Plan</option>
-              {INVESTMENT_PLANS.map(plan => (
-                <option key={plan.id} value={plan.id}>{plan.name}</option>
-              ))}
-            </select>
+      <div className="edit-form-container">
+        <form onSubmit={handleSubmit} className="edit-form">
+          <h4>Edit Transaction: {transaction.id}</h4>
+          
+          <div className="form-row">
+            <div className="form-group">
+              <label>Transaction ID:</label>
+              <input type="text" value={transaction.id} disabled className="disabled-input" />
+            </div>
+            <div className="form-group">
+              <label>User:</label>
+              <input type="text" value={`${transaction.userName} (${transaction.userId})`} disabled className="disabled-input" />
+            </div>
           </div>
-        )}
-        <div className="form-group">
-          <label>Amount:</label>
-          <input
-            type="number"
-            step="0.01"
-            value={formData.amount}
-            onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
-            required
-          />
-        </div>
-        <div className="form-group">
-          <label>Status:</label>
-          <select
-            value={formData.status}
-            onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-          >
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="declined">Declined</option>
-            <option value="completed">Completed</option>
-          </select>
-        </div>
-        <div className="form-group">
-          <label>Description:</label>
-          <textarea
-            value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-          />
-        </div>
-        <div className="form-actions">
-          <button type="submit" className="save-btn">Save Changes</button>
-          <button type="button" onClick={onCancel} className="cancel-btn">
-            Cancel
-          </button>
-        </div>
-      </form>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label>Type:</label>
+              <select
+                value={formData.type}
+                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                required
+              >
+                <option value="">Select Type</option>
+                <option value="deposit">Deposit</option>
+                <option value="withdrawal">Withdrawal</option>
+                <option value="transfer">Transfer</option>
+                <option value="investment">Investment</option>
+                <option value="roi">ROI</option>
+                <option value="bonus">Bonus</option>
+                <option value="penalty">Penalty</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Status:</label>
+              <select
+                value={formData.status}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+              >
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="declined">Declined</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label>Amount ($):</label>
+              <input
+                type="number"
+                step="0.01"
+                value={formData.amount}
+                onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>Payment Method:</label>
+              <input
+                type="text"
+                value={formData.paymentMethod}
+                onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
+                placeholder="e.g., Bank Transfer, PayPal, Crypto"
+              />
+            </div>
+          </div>
+
+          {formData.type === 'investment' && (
+            <div className="form-group">
+              <label>Investment Plan:</label>
+              <select
+                value={formData.planId}
+                onChange={(e) => setFormData({ ...formData, planId: e.target.value })}
+              >
+                <option value="">Select Plan</option>
+                {INVESTMENT_PLANS.map(plan => (
+                  <option key={plan.id} value={plan.id}>{plan.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="form-group">
+            <label>Description:</label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Transaction description"
+              rows="3"
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Admin Notes:</label>
+            <textarea
+              value={formData.adminNotes}
+              onChange={(e) => setFormData({ ...formData, adminNotes: e.target.value })}
+              placeholder="Internal admin notes"
+              rows="2"
+            />
+          </div>
+
+          <div className="form-actions">
+            <button type="submit" className="save-btn">Save Changes</button>
+            <button type="button" onClick={onCancel} className="cancel-btn">Cancel</button>
+          </div>
+        </form>
+      </div>
     );
   };
 
-  // Loading state handling for initial data and admin check
+  // Add Transaction Form
+  const AddTransactionForm = ({ onSave, onCancel }) => {
+    const [formData, setFormData] = useState({
+      userId: '',
+      type: '',
+      amount: 0,
+      description: '',
+      planId: '',
+      paymentMethod: '',
+      adminNotes: '',
+    });
+
+    const handleSubmit = (e) => {
+      e.preventDefault();
+      if (!formData.userId || !formData.type || !formData.amount) {
+        alert('Please fill in all required fields');
+        return;
+      }
+      onSave(formData);
+    };
+
+    return (
+      <div className="edit-form-container">
+        <form onSubmit={handleSubmit} className="edit-form">
+          <h4>Add New Transaction</h4>
+          
+          <div className="form-row">
+            <div className="form-group">
+              <label>User:</label>
+              <select
+                value={formData.userId}
+                onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
+                required
+              >
+                <option value="">Select User</option>
+                {users.map(user => (
+                  <option key={user.id} value={user.id}>
+                    {user.profile.displayName || user.profile.email} ({user.id})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Type:</label>
+              <select
+                value={formData.type}
+                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                required
+              >
+                <option value="">Select Type</option>
+                <option value="deposit">Deposit</option>
+                <option value="withdrawal">Withdrawal</option>
+                <option value="transfer">Transfer</option>
+                <option value="investment">Investment</option>
+                <option value="roi">ROI</option>
+                <option value="bonus">Bonus</option>
+                <option value="penalty">Penalty</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label>Amount ($):</label>
+              <input
+                type="number"
+                step="0.01"
+                value={formData.amount}
+                onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>Payment Method:</label>
+              <input
+                type="text"
+                value={formData.paymentMethod}
+                onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
+                placeholder="e.g., Bank Transfer, PayPal, Crypto"
+              />
+            </div>
+          </div>
+
+          {formData.type === 'investment' && (
+            <div className="form-group">
+              <label>Investment Plan:</label>
+              <select
+                value={formData.planId}
+                onChange={(e) => setFormData({ ...formData, planId: e.target.value })}
+              >
+                <option value="">Select Plan</option>
+                {INVESTMENT_PLANS.map(plan => (
+                  <option key={plan.id} value={plan.id}>{plan.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="form-group">
+            <label>Description:</label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Transaction description"
+              rows="3"
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Admin Notes:</label>
+            <textarea
+              value={formData.adminNotes}
+              onChange={(e) => setFormData({ ...formData, adminNotes: e.target.value })}
+              placeholder="Internal admin notes"
+              rows="2"
+            />
+          </div>
+
+          <div className="form-actions">
+            <button type="submit" className="save-btn">Add Transaction</button>
+            <button type="button" onClick={onCancel} className="cancel-btn">Cancel</button>
+          </div>
+        </form>
+      </div>
+    );
+  };
+
+  // Loading states
   if (loading || dataLoading) {
     return (
       <div className="loading-container">
-        <p>Loading dashboard...</p>
+        <div className="loading-spinner"></div>
+        <p>Loading admin dashboard...</p>
+        <p>Fetching users: {usersFetched ? '✓' : '⏳'}</p>
+        <p>Fetching transactions: {transactionsFetched ? '✓' : '⏳'}</p>
+        <p>Fetching conversations: {conversationsFetched ? '✓' : '⏳'}</p>
       </div>
     );
   }
 
-  // Not authenticated
   if (!user) {
     return (
       <div className="access-denied-container">
+        <h2>Authentication Required</h2>
         <p>Please log in to access the admin dashboard.</p>
       </div>
     );
   }
 
-  // Not admin
   if (!isAdmin) {
     return (
       <div className="access-denied-container">
-        <p>Access denied. Admin privileges required.</p>
+        <h2>Access Denied</h2>
+        <p>Admin privileges required to access this dashboard.</p>
       </div>
     );
   }
 
+  // Get pending transactions count for real-time updates
+  const pendingTransactionsCount = transactions.filter(t => t.status === 'pending').length;
+
   return (
     <div className="admin-dashboard">
-      <h2>Admin Dashboard</h2>
+      <div className="dashboard-header">
+        <h2>Admin Dashboard</h2>
+        <div className="admin-info">
+          <span>Welcome, {user.email}</span>
+          {pendingTransactionsCount > 0 && (
+            <span className="notification-badge">
+              {pendingTransactionsCount} pending transactions
+            </span>
+          )}
+        </div>
+      </div>
 
       {/* Conditional rendering for chat view */}
       {selectedUserForChat ? (
         <div className="admin-chat-view">
           <button onClick={() => setSelectedUserForChat(null)} className="back-to-chats-btn">
-            ← Back to Chat List
+            ← Back to Dashboard
           </button>
           <h3>Chat with {selectedUserForChat.profile?.displayName || selectedUserForChat.profile?.email || selectedUserForChat.id}</h3>
           <AdminChatComponent
-            userId={`user_${selectedUserForChat.id}`} // Pass the user's ID to the chat component (ensure 'user_' prefix if needed)
+            userId={`user_${selectedUserForChat.id}`}
             adminId={adminId}
-            currentUserDisplayName={user.email || "Admin"} // Pass admin's display name
+            currentUserDisplayName={user.email || "Admin"}
           />
         </div>
       ) : (
         <>
-          {/* Dashboard Stats */}
+          {/* Enhanced Dashboard Stats */}
           <div className="dashboard-stats">
             <div className="stat-card">
               <h3>Total Users</h3>
-              <p>{users.length}</p>
+              <p className="stat-number">{users.length}</p>
+              <small>Registered users</small>
             </div>
             <div className="stat-card">
               <h3>Total Transactions</h3>
-              <p>{transactions.length}</p>
+              <p className="stat-number">{transactions.length}</p>
+              <small>All time</small>
+            </div>
+            <div className="stat-card pending">
+              <h3>Pending Transactions</h3>
+              <p className="stat-number">{pendingTransactionsCount}</p>
+              <small>Require approval</small>
             </div>
             <div className="stat-card">
-              <h3>Pending Transactions</h3>
-              <p>{transactions.filter((t) => t.status === 'pending').length}</p>
+              <h3>Active Chats</h3>
+              <p className="stat-number">{conversations.length}</p>
+              <small>Support conversations</small>
             </div>
           </div>
+
+          {/* Quick Actions */}
+          <div className="quick-actions">
+            <button 
+              onClick={() => setShowAddTransaction(true)} 
+              className="action-btn primary-btn"
+            >
+              + Add Transaction
+            </button>
+            <button 
+              onClick={() => setFilterStatus('pending')} 
+              className="action-btn warning-btn"
+            >
+              Review Pending ({pendingTransactionsCount})
+            </button>
+          </div>
+
+          {/* Add Transaction Form */}
+          {showAddTransaction && (
+            <AddTransactionForm
+              onSave={handleAddTransaction}
+              onCancel={() => setShowAddTransaction(false)}
+            />
+          )}
 
           {/* Chat Overview Section */}
           <div className="section chat-overview-section">
             <h3>Support Chats</h3>
             <div className="chat-list">
-              {conversations.length === 0 && <p>No active conversations.</p>}
+              {conversations.length === 0 && <p className="no-data">No active conversations.</p>}
               {conversations.map((conv) => (
                 <div
                   key={conv.id}
                   className="chat-list-item"
-                  onClick={() => setSelectedUserForChat(
-                    users.find(u => u.id === conv.userId) // Pass the full user object
-                  )}
+                  onClick={() => setSelectedUserForChat(users.find(u => u.id === conv.userId))}
                 >
-                  <div className="chat-info">
-                    <strong>{conv.userName || conv.userId}</strong>
-                    {conv.lastMessageText && (
-                      <p className="last-message">
-                        {conv.lastMessageText.length > 50
-                          ? conv.lastMessageText.substring(0, 50) + '...'
-                          : conv.lastMessageText}
-                      </p>
-                    )}
+                  <div className="chat-user-info">
+                    <span className="chat-user-name">{conv.userName}</span>
+                    <span className="chat-user-id">({conv.userId})</span>
                   </div>
-                  {conv.lastMessageTimestamp && (
-                    <span className="last-message-time">
-                      {conv.lastMessageTimestamp?.toDate ? new Date(conv.lastMessageTimestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
-                    </span>
-                  )}
+                  <div className="chat-last-message">
+                    {conv.lastMessage ? conv.lastMessage.text : 'No messages yet.'}
+                  </div>
+                  <div className="chat-timestamp">
+                    {conv.lastMessageTimestamp?.toDate().toLocaleString()}
+                  </div>
                 </div>
               ))}
             </div>
           </div>
 
           {/* Users Section */}
-          <div className="section">
-            <h3>User Management</h3>
-
-            {/* Search and Filter */}
-            <div className="controls">
-              <input
-                type="text"
-                placeholder="Search users by ID, email, or name..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="search-input"
-              />
+          <div className="section users-section">
+            <div className="section-header">
+              <h3>Users Management ({users.length} total)</h3>
+              <div className="section-controls">
+                <input
+                  type="text"
+                  placeholder="Search users by ID, email, or name..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="search-input"
+                />
+              </div>
             </div>
 
-            {/* Users List */}
-            <div className="users-grid">
-              {filteredUsers.length === 0 && <p>No users found.</p>}
-              {filteredUsers.map((user) => {
-                const profile = user.profile || {};
+            {editingUser && (
+              <UserEditForm
+                user={editingUser}
+                onSave={handleUpdateUser}
+                onCancel={() => setEditingUser(null)}
+              />
+            )}
 
-                if (editingUser === user.id) {
-                  return (
-                    <div key={user.id} className="user-card editing">
-                      <UserEditForm
-                        user={user}
-                        onSave={handleUpdateUser}
-                        onCancel={() => setEditingUser(null)}
-                      />
-                    </div>
-                  );
-                }
-
-                return (
-                  <div key={user.id} className="user-card">
-                    <div className="user-header">
-                      <strong>{profile.displayName || user.id}</strong>{' '}
-                      <span className={`status ${profile.status || 'active'}`}>
-                        {profile.status || 'active'}
-                      </span>
-                    </div>
-                    <div className="user-details">
-                      <p>
-                        <strong>User ID:</strong> {user.id}
-                      </p>
-                      <p>
-                        <strong>Email:</strong> {profile.email || 'N/A'}
-                      </p>
-                      <p>
-                        <strong>Display Name:</strong> {profile.displayName || 'N/A'}
-                      </p>
-                      <p>
-                        <strong>Balance:</strong> ${profile.balance !== undefined ? profile.balance.toFixed(2) : 'N/A'}
-                      </p>
-                      <p>
-                        <strong>Total Invested:</strong> ${profile.totalInvested !== undefined ? profile.totalInvested.toFixed(2) : 'N/A'}
-                      </p>
-                      <p>
-                        <strong>Admin:</strong> {String(profile.isAdmin)}
-                      </p>
-                      <p>
-                        <strong>Created:</strong>{' '}
-                        {profile.createdAt?.toDate ? new Date(profile.createdAt.toDate()).toLocaleDateString() : 'N/A'}
-                      </p>
-                    </div>
-                    <div className="user-actions">
-                      <button
-                        onClick={() => setEditingUser(user.id)}
-                        className="edit-btn"
-                      >
-                        Edit Profile
-                      </button>
-                      {!profile.isAdmin && (
-                        <button
-                          onClick={() => handleUpdateUser(user.id, { isAdmin: true }, {})} // Only update isAdmin in profile
-                          className="admin-btn"
+            <div className="table-responsive">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>User ID</th>
+                    <th>Display Name</th>
+                    <th>Email</th>
+                    <th>Balance</th>
+                    <th>Total Invested</th>
+                    <th>Admin</th>
+                    <th>Status</th>
+                    <th>Created At</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredUsers.length === 0 && (
+                    <tr>
+                      <td colSpan="9" className="no-data">No users found.</td>
+                    </tr>
+                  )}
+                  {filteredUsers.map((u) => (
+                    <tr key={u.id}>
+                      <td className="user-id">{u.id}</td>
+                      <td>{u.profile.displayName}</td>
+                      <td>{u.profile.email}</td>
+                      <td className="balance">${u.profile.balance?.toFixed(2)}</td>
+                      <td className="invested">${u.profile.totalInvested?.toFixed(2)}</td>
+                      <td>
+                        <span className={`badge ${u.profile.isAdmin ? 'admin' : 'user'}`}>
+                          {u.profile.isAdmin ? 'Admin' : 'User'}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`badge status-${u.profile.status}`}>
+                          {u.profile.status}
+                        </span>
+                      </td>
+                      <td>{u.profile.createdAt?.toDate?.().toLocaleDateString() || 'N/A'}</td>
+                      <td className="actions-cell">
+                        <button 
+                          onClick={() => setEditingUser(u)} 
+                          className="action-btn edit-btn"
+                          title="Edit User"
                         >
-                          Make Admin
+                          Edit
                         </button>
-                      )}
-                      <button
-                        onClick={() => setSelectedUserForChat(user)}
-                        className="chat-btn"
-                      >
-                        Chat
-                      </button>
-                      <button
-                        onClick={() => handleDeleteUser(user.id)}
-                        className="delete-btn"
-                      >
-                        Delete User Data
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+                        <button 
+                          onClick={() => handleDeleteUser(u.id)} 
+                          className="action-btn delete-btn"
+                          title="Delete User"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
 
           {/* Transactions Section */}
-          <div className="section">
-            <h3>Transaction Management</h3>
-
-            {/* Transaction Filter */}
-            <div className="controls">
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="filter-select"
-              >
-                <option value="all">All Transactions</option>
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
-                <option value="declined">Declined</option>
-                <option value="completed">Completed</option>
-              </select>
-              <button onClick={fetchTransactions} className="refresh-btn">
-                Refresh Transactions
-              </button>
+          <div className="section transactions-section">
+            <div className="section-header">
+              <h3>Transactions Management ({transactions.length} total)</h3>
+              <div className="section-controls">
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="status-filter-select"
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="pending">Pending ({transactions.filter(t => t.status === 'pending').length})</option>
+                  <option value="approved">Approved ({transactions.filter(t => t.status === 'approved').length})</option>
+                  <option value="declined">Declined ({transactions.filter(t => t.status === 'declined').length})</option>
+                  <option value="completed">Completed ({transactions.filter(t => t.status === 'completed').length})</option>
+                </select>
+              </div>
             </div>
 
-            {/* Transactions List */}
-            <div className="transactions-grid">
-              {filteredTransactions.length === 0 && <p>No transactions found for current filter.</p>}
-              {filteredTransactions.map((trans) => {
-                if (editingTransaction === trans.id) {
-                  return (
-                    <div key={trans.id} className="transaction-card editing">
-                      <TransactionEditForm
-                        transaction={trans}
-                        onSave={handleUpdateTransaction}
-                        onCancel={() => setEditingTransaction(null)}
-                      />
-                    </div>
-                  );
-                }
+            {editingTransaction && (
+              <TransactionEditForm
+                transaction={editingTransaction}
+                onSave={handleUpdateTransaction}
+                onCancel={() => setEditingTransaction(null)}
+              />
+            )}
 
-                return (
-                  <div key={trans.id} className={`transaction-card status-${trans.status}`}>
-                    <h4>{trans.type} - ${trans.amount.toFixed(2)}</h4>
-                    <p><strong>User:</strong> {trans.userName}</p>
-                    <p><strong>Status:</strong> <span className={`status ${trans.status}`}>{trans.status}</span></p>
-                    <p><strong>Date:</strong> {trans.createdAt?.toDate ? new Date(trans.createdAt.toDate()).toLocaleString() : 'N/A'}</p>
-                    {trans.description && <p><strong>Desc:</strong> {trans.description}</p>}
-                    {trans.type === 'investment' && trans.planId && <p><strong>Plan:</strong> {INVESTMENT_PLANS.find(p => p.id === trans.planId)?.name || trans.planId}</p>}
-                    <div className="transaction-actions">
-                      {trans.status === 'pending' && (
-                        <>
-                          <button onClick={() => handleApproveDeclineTransaction(trans, 'approve')} className="approve-btn">Approve</button>
-                          <button onClick={() => handleApproveDeclineTransaction(trans, 'declined')} className="decline-btn">Decline</button>
-                        </>
-                      )}
-                      <button onClick={() => setEditingTransaction(trans.id)} className="edit-btn">Edit</button>
-                      <button onClick={() => handleDeleteTransaction(trans.ref)} className="delete-btn">Delete</button>
-                    </div>
-                  </div>
-                );
-              })}
+            <div className="table-responsive">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>User</th>
+                    <th>Type</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Plan</th>
+                    <th>Method</th>
+                    <th>Created At</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredTransactions.length === 0 && (
+                    <tr>
+                      <td colSpan="9" className="no-data">
+                        No transactions found for the selected filter.
+                      </td>
+                    </tr>
+                  )}
+                  {filteredTransactions.map((trans) => (
+                    <tr key={trans.id} className={trans.status === 'pending' ? 'pending-row' : ''}>
+                      <td className="trans-id">{trans.id.substring(0, 8)}...</td>
+                      <td>
+                        <div className="user-cell">
+                          <span className="user-name">{trans.userName}</span>
+                          <small className="user-id">({trans.userId})</small>
+                        </div>
+                      </td>
+                      <td>
+                        <span className={`badge type-${trans.type}`}>
+                          {trans.type}
+                        </span>
+                      </td>
+                      <td className="amount">${trans.amount?.toFixed(2)}</td>
+                      <td>
+                        <span className={`badge status-${trans.status}`}>
+                          {trans.status}
+                        </span>
+                      </td>
+                      <td>{trans.planId || 'N/A'}</td>
+                      <td>{trans.paymentMethod || 'N/A'}</td>
+                      <td>{trans.createdAt?.toDate?.().toLocaleDateString() || 'N/A'}</td>
+                      <td className="actions-cell">
+                        {trans.status === 'pending' && (
+                          <>
+                            <button 
+                              onClick={() => handleApproveDeclineTransaction(trans, 'approve')} 
+                              className="action-btn approve-btn"
+                              title="Approve Transaction"
+                            >
+                              ✓ Approve
+                            </button>
+                            <button 
+                              onClick={() => handleApproveDeclineTransaction(trans, 'decline')} 
+                              className="action-btn decline-btn"
+                              title="Decline Transaction"
+                            >
+                              ✗ Decline
+                            </button>
+                          </>
+                        )}
+                        <button 
+                          onClick={() => setEditingTransaction(trans)} 
+                          className="action-btn edit-btn"
+                          title="Edit Transaction"
+                        >
+                          Edit
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteTransaction(trans.ref)} 
+                          className="action-btn delete-btn"
+                          title="Delete Transaction"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </>

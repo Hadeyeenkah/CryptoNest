@@ -4,9 +4,9 @@ import {
   getFirestore,
   connectFirestoreEmulator,
   setLogLevel,
-} from "firebase/firestore"; // Removed doc, getDoc, setDoc, Timestamp as they are not used here
+} from "firebase/firestore";
 import { getAnalytics, isSupported } from "firebase/analytics";
-import { getFunctions, connectFunctionsEmulator } from "firebase/functions"; // Import getFunctions and connectFunctionsEmulator
+import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
 
 // === Firebase Config ===
 export const defaultFirebaseConfig = {
@@ -54,8 +54,8 @@ export const app =
   getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 export const auth = getAuth(app);
-export const db = getFirestore(app); // Renamed 'firestore' to 'db' for consistency
-export const functions = getFunctions(app); // Initialize and export Firebase Functions
+export const db = getFirestore(app);
+export const functions = getFunctions(app);
 export let analytics = null;
 
 // --- Log Level ---
@@ -85,13 +85,127 @@ initializeAnalytics();
 if (ENABLE_EMULATORS && DEBUG) {
   try {
     connectAuthEmulator(auth, "http://localhost:9099", { disableWarnings: true });
-    connectFirestoreEmulator(db, "localhost", 8080); // Use 'db' instead of 'firestore'
-    connectFunctionsEmulator(functions, "localhost", 5001); // Connect to Functions emulator
+    connectFirestoreEmulator(db, "localhost", 8080);
+    connectFunctionsEmulator(functions, "localhost", 5001);
     console.log("[Firebase] Connected to local emulators.");
   } catch (err) {
     console.warn("[Firebase] Emulator connection failed:", err.message);
   }
 }
 
-// --- REMOVED: The ensureUserDocumentExists function has been moved to AuthContext.jsx ---
-// It is no longer needed here as this file should only handle Firebase initialization.
+// --- Admin Helper Functions ---
+// Helper function to check if current user is admin
+export const checkAdminStatus = async (user) => {
+  if (!user) return false;
+  
+  try {
+    // Check custom claims first
+    const token = await user.getIdTokenResult();
+    if (token.claims.isAdmin === true) {
+      return true;
+    }
+    
+    // Fallback to profile document check
+    const { doc, getDoc } = await import('firebase/firestore');
+    const appId = 'cryptonest';
+    const userProfileRef = doc(db, `artifacts/${appId}/users/${user.uid}/profile/data`);
+    const profileDoc = await getDoc(userProfileRef);
+    
+    if (profileDoc.exists()) {
+      const profileData = profileDoc.data();
+      return profileData.isAdmin === true;
+    }
+    
+    return false;
+  } catch (err) {
+    console.error('Error checking admin status:', err);
+    return false;
+  }
+};
+
+// Helper function to get user profile and dashboard data
+export const getUserData = async (userId) => {
+  try {
+    const { doc, getDoc } = await import('firebase/firestore');
+    const appId = 'cryptonest';
+    
+    const profileRef = doc(db, `artifacts/${appId}/users/${userId}/profile/data`);
+    const dashboardRef = doc(db, `artifacts/${appId}/users/${userId}/dashboardData/data`);
+    
+    const [profileDoc, dashboardDoc] = await Promise.all([
+      getDoc(profileRef),
+      getDoc(dashboardRef)
+    ]);
+    
+    const profileData = profileDoc.exists() ? profileDoc.data() : {};
+    const dashboardData = dashboardDoc.exists() ? dashboardDoc.data() : {};
+    
+    return {
+      profile: {
+        email: profileData.email || 'N/A',
+        displayName: profileData.displayName || userId,
+        isAdmin: profileData.isAdmin || false,
+        createdAt: profileData.createdAt || null,
+        status: profileData.status || 'active',
+        balance: dashboardData.balance !== undefined ? dashboardData.balance : 0,
+        totalInvested: dashboardData.totalInvested !== undefined ? dashboardData.totalInvested : 0,
+        currentInvestment: dashboardData.currentInvestment || null,
+        ...profileData,
+        ...dashboardData
+      }
+    };
+  } catch (err) {
+    console.error(`Error fetching user data for ${userId}:`, err);
+    return {
+      profile: {
+        email: 'Error fetching',
+        displayName: 'Error fetching',
+        isAdmin: false,
+        createdAt: null,
+        balance: 0,
+        totalInvested: 0,
+        status: 'error'
+      }
+    };
+  }
+};
+
+// Helper function for real-time listeners cleanup
+export const createCleanupTracker = () => {
+  const unsubscribeFunctions = [];
+  
+  return {
+    add: (unsubscribe) => {
+      unsubscribeFunctions.push(unsubscribe);
+    },
+    cleanup: () => {
+      unsubscribeFunctions.forEach(unsub => {
+        try {
+          unsub();
+        } catch (err) {
+          console.warn('Error during cleanup:', err);
+        }
+      });
+      unsubscribeFunctions.length = 0;
+    }
+  };
+};
+
+// Connection status checker
+export const checkFirebaseConnection = async () => {
+  try {
+    const { doc, getDoc } = await import('firebase/firestore');
+    const testDoc = doc(db, 'connection-test', 'test');
+    await getDoc(testDoc);
+    console.log('[Firebase] Connection successful');
+    return true;
+  } catch (err) {
+    console.error('[Firebase] Connection failed:', err);
+    return false;
+  }
+};
+
+// Initialize connection check in development
+if (DEBUG) {
+  checkFirebaseConnection();
+}

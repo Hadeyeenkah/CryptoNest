@@ -19,6 +19,40 @@ const formatCurrency = (value) => {
 const capitalize = (str) =>
   str ? str.charAt(0).toUpperCase() + str.slice(1) : "";
 
+// Helper function to get status display text
+const getStatusDisplayText = (status) => {
+  const statusMap = {
+    'pending': 'Pending',
+    'processing': 'Processing',
+    'approved': 'Approved',
+    'completed': 'Completed',
+    'rejected': 'Rejected',
+    'failed': 'Failed',
+    'declined': 'Declined', // Added 'declined' status
+    'cancelled': 'Cancelled', // Added 'cancelled' status
+  };
+  return statusMap[status] || capitalize(status);
+};
+
+// Helper function to get status icon
+const getStatusIcon = (status) => {
+  switch (status) {
+    case 'approved':
+    case 'completed':
+      return '✓';
+    case 'rejected':
+    case 'failed':
+    case 'declined': // Icon for declined
+    case 'cancelled': // Icon for cancelled
+      return '✗';
+    case 'processing':
+      return '⟳';
+    case 'pending':
+    default:
+      return '●';
+  }
+};
+
 // Define investment plans as constants
 const INVESTMENT_PLANS = [
   {
@@ -64,6 +98,184 @@ const INVESTMENT_PLANS = [
     gradient: 'from-purple-500 to-pink-600'
   },
 ];
+
+// TransactionStatusBadge Component
+const TransactionStatusBadge = ({ status, showIcon = false, onClick = null }) => {
+  const statusClass = `inline-flex items-center px-2 py-1 rounded-full text-sm font-medium transition-colors ${
+    status === 'completed' || status === 'approved' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+    status === 'pending' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+    status === 'processing' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+    'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+  }`;
+  
+  return (
+    <span 
+      className={statusClass}
+      onClick={onClick}
+      style={{ cursor: onClick ? 'pointer' : 'default' }}
+    >
+      {showIcon && <span className="mr-1">{getStatusIcon(status)}</span>}
+      {getStatusDisplayText(status)}
+    </span>
+  );
+};
+
+// TransactionStatusFilter Component
+const TransactionStatusFilter = ({ activeFilter, onFilterChange, transactions }) => {
+  const statusCounts = transactions.reduce((acc, transaction) => {
+    const status = transaction.status || 'pending';
+    acc[status] = (acc[status] || 0) + 1;
+    acc.all = (acc.all || 0) + 1;
+    return acc;
+  }, {});
+
+  const filters = [
+    { key: 'all', label: 'All', count: statusCounts.all || 0 },
+    { key: 'pending', label: 'Pending', count: statusCounts.pending || 0 },
+    { key: 'processing', label: 'Processing', count: statusCounts.processing || 0 },
+    { key: 'approved', label: 'Approved', count: statusCounts.approved || 0 },
+    { key: 'completed', label: 'Completed', count: statusCounts.completed || 0 },
+    { key: 'rejected', label: 'Rejected', count: statusCounts.rejected || 0 },
+    { key: 'declined', label: 'Declined', count: statusCounts.declined || 0 }, // Added declined
+    { key: 'failed', label: 'Failed', count: statusCounts.failed || 0 },
+    { key: 'cancelled', label: 'Cancelled', count: statusCounts.cancelled || 0 }, // Added cancelled
+  ];
+
+  return (
+    <div className="flex flex-wrap gap-2 mb-6">
+      {filters.map(filter => (
+        // Only render filters that have at least one transaction or are the active filter
+        (filter.count > 0 || activeFilter === filter.key) && (
+          <button
+            key={filter.key}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeFilter === filter.key 
+                ? 'bg-blue-600 text-white' 
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+            }`}
+            onClick={() => onFilterChange(filter.key)}
+          >
+            {filter.label} ({filter.count})
+          </button>
+        )
+      ))}
+    </div>
+  );
+};
+
+// TransactionStatusModal Component
+const TransactionStatusModal = ({ show, transaction, onClose }) => {
+  if (!show || !transaction) return null;
+
+  const getTimelineData = (transaction) => {
+    const timeline = [];
+    const createdDate = transaction.timestamp?.toDate() || new Date(); // Ensure it's a Date object
+    
+    // Always show created/submitted
+    timeline.push({
+      status: 'pending',
+      title: 'Transaction Submitted',
+      description: `${capitalize(transaction.type)} request submitted`,
+      timestamp: createdDate,
+      completed: true
+    });
+
+    // Add processing if status is beyond pending
+    if (['processing', 'approved', 'completed', 'rejected', 'failed', 'declined', 'cancelled'].includes(transaction.status)) {
+      timeline.push({
+        status: 'processing',
+        title: 'Processing',
+        description: 'Transaction is being reviewed',
+        // Use actual approvedAt/updatedAt if available, otherwise a demo timestamp
+        timestamp: transaction.approvedAt?.toDate() || transaction.updatedAt?.toDate() || new Date(createdDate.getTime() + 5 * 60000), 
+        completed: true
+      });
+    }
+
+    // Add final status
+    if (['approved', 'completed', 'rejected', 'failed', 'declined', 'cancelled'].includes(transaction.status)) {
+      timeline.push({
+        status: transaction.status,
+        title: getStatusDisplayText(transaction.status),
+        description: transaction.status === 'approved' ? 'Transaction approved successfully' :
+                     transaction.status === 'completed' ? 'Transaction completed successfully' :
+                     transaction.status === 'rejected' ? 'Transaction was rejected' :
+                     transaction.status === 'declined' ? 'Transaction was declined by admin' : // Specific message for declined
+                     transaction.status === 'cancelled' ? 'Transaction was cancelled by user' : // Specific message for cancelled
+                     'Transaction failed to process',
+        // Use actual approvedAt/updatedAt if available, otherwise a demo timestamp
+        timestamp: transaction.approvedAt?.toDate() || transaction.updatedAt?.toDate() || new Date(createdDate.getTime() + 15 * 60000), 
+        completed: true
+      });
+    }
+
+    return timeline;
+  };
+
+  const timelineData = getTimelineData(transaction);
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Transaction Status Details</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="p-6">
+          <div className="space-y-4 mb-6">
+            <div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">Transaction ID</div>
+              <div className="font-medium text-gray-900 dark:text-white">{transaction.id}</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">Type</div>
+              <div className="font-medium text-gray-900 dark:text-white">{capitalize(transaction.type)}</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">Amount</div>
+              <div className="font-medium text-gray-900 dark:text-white">{formatCurrency(transaction.amount)}</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">Current Status</div>
+              <div className="mt-1">
+                <TransactionStatusBadge status={transaction.status || 'pending'} showIcon={true} />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h4 className="font-medium text-gray-900 dark:text-white mb-4">Timeline</h4>
+            <div className="space-y-4">
+              {timelineData.map((item, index) => (
+                <div key={index} className="flex items-start space-x-3">
+                  <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                    item.status === 'completed' || item.status === 'approved' ? 'bg-green-100 text-green-600' :
+                    item.status === 'pending' ? 'bg-yellow-100 text-yellow-600' :
+                    item.status === 'processing' ? 'bg-blue-100 text-blue-600' :
+                    'bg-red-100 text-red-600'
+                  }`}>
+                    {getStatusIcon(item.status)}
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium text-gray-900 dark:text-white">{item.title}</div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">{item.description}</div>
+                    <div className="text-xs text-gray-400 mt-1">
+                      {item.timestamp.toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // InvestmentPlanCard Component
 const InvestmentPlanCard = ({ plan, currentInvestment, onSelectPlan, index }) => {
@@ -195,6 +407,11 @@ const DashboardPage = () => {
     false
   );
 
+  // Transaction status states for the modal
+  const [selectedTransaction, setSelectedTransaction] = useState(null);
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('all'); // For filtering transactions
+
   // Combined loading state for the dashboard
   const isLoading = authLoading || !isAuthReady || !db || !userId;
 
@@ -202,6 +419,18 @@ const DashboardPage = () => {
   const getPlanById = useCallback((planId) => {
     return INVESTMENT_PLANS.find(p => p.id === planId) || null;
   }, []);
+
+  // Filter transactions based on status
+  const filteredTransactions = transactions.filter(transaction => {
+    if (statusFilter === 'all') return true;
+    return (transaction.status || 'pending') === statusFilter;
+  });
+
+  // Handle transaction status click to open modal
+  const handleTransactionStatusClick = (transaction) => {
+    setSelectedTransaction(transaction);
+    setShowStatusModal(true);
+  };
 
   // Effect to fetch and listen to user data from Firestore
   useEffect(() => {
@@ -220,7 +449,6 @@ const DashboardPage = () => {
           setTotalInvested(data.totalInvested || 0);
 
           // Find the full plan object using the stored plan ID
-          // The stored data.currentInvestment might just be { id: 'basic' } or { id: 'gold', name: 'Gold Plan', ... (without icon) }
           if (data.currentInvestment && data.currentInvestment.id) {
             setCurrentInvestment(getPlanById(data.currentInvestment.id));
           } else {
@@ -232,15 +460,14 @@ const DashboardPage = () => {
           console.log("DashboardPage: Fetched dashboard data:", data);
         } else {
           // Initialize user dashboard data if it doesn't exist
-          // FIX: Set initial balance to 0 to comply with Firestore rules for 'create'
           const initialData = {
             currentInvestment: null, // Store just the ID or null
-            balance: 0, // Changed from 1000.00 to 0 to comply with Firestore rules
+            balance: 0, 
             totalInvested: 0,
             lastDailyEarningTimestamp: null,
             lastCalculatedDailyEarningAmount: 0,
-            createdAt: Timestamp.now(), // Added
-            updatedAt: Timestamp.now(), // Added
+            createdAt: Timestamp.now(), 
+            updatedAt: Timestamp.now(), 
           };
           setDoc(userDashboardDocRef, initialData)
             .then(() => {
@@ -261,15 +488,17 @@ const DashboardPage = () => {
 
       // Listen to user's transactions subcollection
       const transactionsCollectionRef = collection(db, 'artifacts', appId, 'users', userId, 'transactions');
+      // Order by timestamp to show most recent first
       const q = query(transactionsCollectionRef, orderBy('timestamp', 'desc'));
 
       unsubscribeTransactions = onSnapshot(q, (snapshot) => {
         const fetchedTransactions = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data(),
+          // Ensure timestamp is a Date object
           timestamp: doc.data().timestamp instanceof Timestamp
-                             ? doc.data().timestamp.toDate()
-                             : (doc.data().timestamp ? new Date(doc.data().timestamp) : null), // Handle potentially missing timestamp
+                         ? doc.data().timestamp.toDate()
+                         : (doc.data().timestamp ? new Date(doc.data().timestamp) : null),
         }));
         setTransactions(fetchedTransactions);
         console.log("DashboardPage: Fetched user transactions from subcollection:", fetchedTransactions);
@@ -312,12 +541,11 @@ const DashboardPage = () => {
     }
     const userDocRef = doc(db, 'artifacts', appId, 'users', userId, 'dashboardData', 'data');
 
-    // Only include updatedAt and the specific fields being updated
     const payload = {
       updatedAt: Timestamp.now(), // Always include updatedAt
     };
 
-    // Only add fields that are explicitly being updated
+    // Only add fields that are explicitly being updated by the user's client-side actions
     if (updates.hasOwnProperty('lastCalculatedDailyEarningAmount')) {
       payload.lastCalculatedDailyEarningAmount = updates.lastCalculatedDailyEarningAmount;
     }
@@ -327,6 +555,15 @@ const DashboardPage = () => {
     if (updates.hasOwnProperty('currentInvestment')) {
       payload.currentInvestment = updates.currentInvestment;
     }
+    // Removed direct client-side updates for 'balance' and 'totalInvested'
+    // These should primarily be managed by admin approvals (server-side logic)
+    // if (updates.hasOwnProperty('balance')) {
+    //   payload.balance = updates.balance;
+    // }
+    // if (updates.hasOwnProperty('totalInvested')) {
+    //   payload.totalInvested = updates.totalInvested;
+    // }
+
 
     try {
       console.log("Attempting to send to Firestore (owner update):", payload);
@@ -363,10 +600,11 @@ const DashboardPage = () => {
       console.log(`Daily earnings calculation (client-side): totalInvested=${totalInvested}, dailyROI=${currentInvestment.dailyROI}, earningsForToday=${earningsForToday}`);
 
       // Update Firestore with the last calculated amount and timestamp.
-      // The actual 'balance' update will be handled by a server-side process (e.g., Cloud Function).
+      // The actual 'balance' update should come from admin approval.
       await updateFirestoreData({
         lastCalculatedDailyEarningAmount: earningsForToday, // Store the full daily earning for display
         lastDailyEarningTimestamp: Timestamp.now(), // Update to current time
+        // Removed: balance: balance + earningsForToday, // This is now handled by admin approval
       });
 
       // Set display earnings immediately to show the effect to the user
@@ -376,7 +614,7 @@ const DashboardPage = () => {
       // If it's the same day, ensure displayDailyEarnings reflects the last calculated amount
       setDisplayDailyEarnings(lastCalculatedDailyEarningAmount);
     }
-  }, [isLoading, currentInvestment, totalInvested, lastDailyEarningTimestamp, updateFirestoreData, lastCalculatedDailyEarningAmount]);
+  }, [isLoading, currentInvestment, totalInvested, lastDailyEarningTimestamp, updateFirestoreData, lastCalculatedDailyEarningAmount]); // Removed 'balance' from dependencies
 
   useEffect(() => {
     // Run the daily earnings calculation logic
@@ -450,10 +688,9 @@ const DashboardPage = () => {
       gradient: plan.gradient,
     };
 
-    await updateFirestoreData({ currentInvestment: planToStore });
     // Redirect to deposit page after selecting a plan
     navigate('/deposit');
-  }, [db, userId, appId, updateFirestoreData, navigate]);
+  }, [db, userId, appId, navigate]); 
 
 
   if (isLoading) {
@@ -550,121 +787,135 @@ const DashboardPage = () => {
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
                     <circle cx="8.5" cy="7" r="4"/>
-                    <path d="M20 8v6M23 11l-3 3-3-3"/>
+                    <path d="M20 8v6m3-3h-6"/>
                   </svg>
                 </div>
                 <div className="stat-content">
                   <h3 className="stat-label">Total Invested</h3>
                   <p className="stat-value">{formatCurrency(totalInvested)}</p>
-                  <span className="stat-change neutral">Active investments</span>
+                  <span className="stat-change info">Across all plans</span>
                 </div>
               </div>
 
               <div className="stat-card earnings-card">
                 <div className="stat-icon">
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                    <path d="M2 17l6-6 4 4 8-8m-2 8h-4m4 0V9"/>
                   </svg>
                 </div>
                 <div className="stat-content">
                   <h3 className="stat-label">Daily Earnings</h3>
-                  {/* Display the animated earnings */}
                   <p className="stat-value">{formatCurrency(displayDailyEarnings)}</p>
-                  <span className="stat-change positive">
-                    {currentInvestment ? `${(currentInvestment.dailyROI * 100).toFixed(0)}% ROI today` : 'No active plan'}
-                  </span>
+                  <span className="stat-change positive">Projected today</span>
                 </div>
               </div>
 
-              <div className="stat-card plan-card">
+              <div className="stat-card active-plan-card">
                 <div className="stat-icon">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M9 12l2 2 4-4M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
-                  </svg>
+                  {currentInvestment?.icon || (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <path d="M8 12h8" />
+                      <path d="M12 8v8" />
+                    </svg>
+                  )}
                 </div>
                 <div className="stat-content">
                   <h3 className="stat-label">Active Plan</h3>
-                  <p className="stat-value plan-name">
-                    {currentInvestment ? currentInvestment.name : 'None Selected'}
-                  </p>
-                  <span className="stat-change neutral">
-                    {currentInvestment ? `${(currentInvestment.dailyROI * 100).toFixed(0)}% daily ROI` : 'Choose a plan'}
+                  <p className="stat-value">{currentInvestment?.name || 'No Active Plan'}</p>
+                  <span className="stat-change info">
+                    {currentInvestment ? `ROI: ${(currentInvestment.dailyROI * 100).toFixed(0)}% daily` : 'Select a plan below'}
                   </span>
                 </div>
               </div>
             </div>
           </section>
 
-          {/* Investment Plans */}
-          <InvestmentPlansSection currentInvestment={currentInvestment} onSelectPlan={handleSelectPlan} />
+          {/* Investment Plans Section */}
+          <InvestmentPlansSection
+            currentInvestment={currentInvestment}
+            onSelectPlan={handleSelectPlan}
+          />
 
-          {/* Transaction History */}
-          <section className="transactions-section">
+          {/* Transaction History Section */}
+          <section className="transactions-history-section">
             <div className="section-header">
-              <h2 className="section-title">Recent Transactions</h2>
-              <p className="section-subtitle">Track your financial activity</p>
+              <h2 className="section-title">Transaction History</h2>
+              <p className="section-subtitle">Keep track of all your deposits, withdrawals, and earnings.</p>
             </div>
-
-            <div className="transactions-container">
-              {transactions.length > 0 ? (
-                <div className="transactions-list">
-                  {transactions.map((transaction, index) => (
-                    <div
-                      key={transaction.id}
-                      className={`transaction-item ${transaction.type}`}
-                      style={{ animationDelay: `${index * 0.1}s` }}
-                    >
-                      <div className="transaction-icon">
-                        {transaction.type === 'deposit' ? (
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <line x1="12" y1="5" x2="12" y2="19"></line>
-                            <polyline points="19 12 12 19 5 12"></polyline>
-                          </svg>
-                        ) : transaction.type === 'withdrawal' ? (
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <line x1="12" y1="19" x2="12" y2="5"></line>
-                            <polyline points="5 12 12 5 19 12"></polyline>
-                          </svg>
-                        ) : transaction.type === 'earning' ? (
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M20 17.58A5 5 0 0 0 18 8h-1.26a8 8 0 1 0-11.62 9.77"></path>
-                            <polyline points="12 12 16 16 20 12"></polyline>
-                          </svg>
-                        ) : (
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <line x1="12" y1="16" x2="12" y2="12"></line>
-                            <line x1="12" y1="8" x2="12.01" y2="8"></line>
-                          </svg>
-                        )}
-                      </div>
-                      <div className="transaction-details">
-                        <span className="transaction-type">{capitalize(transaction.type)}</span>
-                        <span className="transaction-date">
+            <TransactionStatusFilter
+              activeFilter={statusFilter}
+              onFilterChange={setStatusFilter}
+              transactions={transactions}
+            />
+            <div className="table-responsive">
+              <table className="min-w-full bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+                <thead className="bg-gray-50 dark:bg-gray-700">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Type</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Amount</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Description</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {filteredTransactions.length === 0 ? (
+                    <tr>
+                      <td colSpan="5" className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center">
+                        No transactions found.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredTransactions.map((transaction) => (
+                      <tr key={transaction.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           {transaction.timestamp ? transaction.timestamp.toLocaleDateString() : 'N/A'}
-                        </span>
-                      </div>
-                      <div className={`transaction-amount ${transaction.type}`}>
-                        {formatCurrency(transaction.amount)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="no-transactions">
-                  <p>No transactions found yet.</p>
-                  <p>Make your first deposit to see your activity here!</p>
-                </div>
-              )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                          {capitalize(transaction.type)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                          {formatCurrency(transaction.amount)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <TransactionStatusBadge 
+                            status={transaction.status || 'pending'} 
+                            showIcon={true} 
+                            onClick={() => handleTransactionStatusClick(transaction)} 
+                          />
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                          {transaction.description || 'N/A'}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </section>
         </>
       </div>
 
       {/* Info Modal */}
-      <Modal show={showInfoModal} title={infoModalTitle} onClose={() => setShowInfoModal(false)}>
+      <Modal
+        show={showInfoModal}
+        title={infoModalTitle}
+        onClose={() => setShowInfoModal(false)}
+      >
         <p>{infoModalMessage}</p>
+        <button onClick={() => setShowInfoModal(false)} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md">
+          Close
+        </button>
       </Modal>
+
+      {/* Transaction Status Details Modal */}
+      <TransactionStatusModal
+        show={showStatusModal}
+        transaction={selectedTransaction}
+        onClose={() => setShowStatusModal(false)}
+      />
     </div>
   );
 };
