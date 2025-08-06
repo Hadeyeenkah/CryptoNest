@@ -71,7 +71,7 @@ const DepositPage = () => {
   const [activeTab, setActiveTab] = useState('instructions'); // New state for tabs
 
   // Fixed wallet address
-  const walletAddress = 'bc1qg9a93teaqcyw7v4f60j69djz9sxny8nmf0w2zf';
+  const walletAddress = '3GjvHck9uRJWQjyFZfPkekXd1KhQapAbLS';
   const qrCodeImageUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent(walletAddress);
 
   // Effect to manage initial loading state
