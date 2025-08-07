@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { doc, getDoc, setDoc, onSnapshot, collection, query, orderBy, Timestamp, updateDoc, getDocs } from "firebase/firestore";
+import { doc, getDoc, setDoc, onSnapshot, collection, query, orderBy, Timestamp, updateDoc } from "firebase/firestore";
 
 import { useAuth } from '../contexts/AuthContext.jsx';
 import './dashboard.css';
 
-// Helper functions (all remain the same)
+/**
+ * Helper function to format a number as a currency string.
+ * @param {number} value The number to format.
+ * @returns {string} The formatted currency string.
+ */
 const formatCurrency = (value) => {
     return new Intl.NumberFormat('en-US', {
         style: 'currency',
@@ -15,8 +19,18 @@ const formatCurrency = (value) => {
     }).format(value);
 };
 
+/**
+ * Helper function to capitalize the first letter of a string.
+ * @param {string} str The string to capitalize.
+ * @returns {string} The capitalized string.
+ */
 const capitalize = (str) => str ? str.charAt(0).toUpperCase() + str.slice(1) : "";
 
+/**
+ * Helper function to get a human-readable display text for a transaction status.
+ * @param {string} status The status key (e.g., 'pending').
+ * @returns {string} The display text (e.g., 'Pending').
+ */
 const getStatusDisplayText = (status) => {
     const statusMap = {
         'pending': 'Pending', 'processing': 'Processing', 'approved': 'Approved',
@@ -26,6 +40,11 @@ const getStatusDisplayText = (status) => {
     return statusMap[status] || capitalize(status);
 };
 
+/**
+ * Helper function to get an icon for a transaction status.
+ * @param {string} status The status key.
+ * @returns {string} The emoji icon.
+ */
 const getStatusIcon = (status) => {
     switch (status) {
         case 'approved':
@@ -40,28 +59,43 @@ const getStatusIcon = (status) => {
     }
 };
 
+/**
+ * Hardcoded list of investment plans.
+ */
 const INVESTMENT_PLANS = [
     {
-        id: 'basic', name: 'Basic Plan', dailyROI: 0.10, minInvestment: 500, maxInvestment: 1000,
+        id: 'basic', name: 'Basic Plan', dailyROI: 0.001, minInvestment: 500, maxInvestment: 1000,
         description: 'A solid start for your investment journey.', gradient: 'from-blue-500 to-purple-600',
         duration: 30
     },
     {
-        id: 'gold', name: 'Gold Plan', dailyROI: 0.20, minInvestment: 1001, maxInvestment: 5000,
+        id: 'gold', name: 'Gold Plan', dailyROI: 0.002, minInvestment: 1001, maxInvestment: 5000,
         description: 'Accelerate your returns with higher potential.', gradient: 'from-yellow-400 to-orange-500',
         duration: 30
     },
     {
-        id: 'platinum', name: 'Platinum Plan', dailyROI: 0.30, minInvestment: 5001, maxInvestment: 100000,
+        id: 'platinum', name: 'Platinum Plan', dailyROI: 0.003, minInvestment: 5001, maxInvestment: 100000,
         description: 'Maximize your earnings with our exclusive plan.', gradient: 'from-purple-500 to-pink-600',
         duration: 30
     },
 ];
 
+/**
+ * Calculates the current account balance.
+ * @param {number} totalInvested The total amount invested.
+ * @param {number} accumulatedEarnings The total earnings.
+ * @param {number} totalWithdrawals The total amount withdrawn.
+ * @returns {number} The current balance.
+ */
 const calculateCurrentBalance = (totalInvested, accumulatedEarnings, totalWithdrawals) => {
     return totalInvested + accumulatedEarnings - totalWithdrawals;
 };
 
+/**
+ * Calculates the number of days since a given start date.
+ * @param {Date | Timestamp} startDate The starting date.
+ * @returns {number} The number of full days passed.
+ */
 const calculateDaysSinceStart = (startDate) => {
     if (!startDate) return 0;
     const now = new Date();
@@ -70,11 +104,22 @@ const calculateDaysSinceStart = (startDate) => {
     return Math.floor(diffTime / (1000 * 60 * 60 * 24));
 };
 
+/**
+ * Calculates accumulated earnings based on total invested, daily ROI, and duration.
+ * @param {number} totalInvested The total amount invested.
+ * @param {number} dailyROI The daily return on investment rate.
+ * @param {number} daysSinceStart The number of days the investment has been active.
+ * @param {number} maxDays The maximum duration of the plan.
+ * @returns {number} The calculated accumulated earnings.
+ */
 const calculateAccumulatedEarnings = (totalInvested, dailyROI, daysSinceStart, maxDays) => {
     const effectiveDays = Math.min(daysSinceStart, maxDays);
     return totalInvested * dailyROI * effectiveDays;
 };
 
+/**
+ * A styled component for transaction status badges.
+ */
 const TransactionStatusBadge = ({ status, showIcon = false, onClick = null }) => {
     const getStatusClass = (status) => {
         const baseClass = "inline-flex items-center px-2 py-1 rounded-full text-sm font-medium transition-colors cursor-pointer hover:opacity-80";
@@ -95,6 +140,9 @@ const TransactionStatusBadge = ({ status, showIcon = false, onClick = null }) =>
     );
 };
 
+/**
+ * A styled component for admin controls on a transaction.
+ */
 const AdminTransactionControl = ({ transaction, onStatusUpdate, isLoading = false }) => {
     const [isUpdating, setIsUpdating] = useState(false);
 
@@ -155,6 +203,9 @@ const AdminTransactionControl = ({ transaction, onStatusUpdate, isLoading = fals
     );
 };
 
+/**
+ * A card component for displaying an investment plan.
+ */
 const InvestmentPlanCard = ({ plan, currentInvestment, onSelectPlan, index }) => {
     const isActive = currentInvestment && currentInvestment.id === plan.id;
 
@@ -174,7 +225,7 @@ const InvestmentPlanCard = ({ plan, currentInvestment, onSelectPlan, index }) =>
             <div className="plan-stats">
                 <div className="stat-item">
                     <span className="stat-label">Daily ROI</span>
-                    <span className="stat-value roi">{(plan.dailyROI * 100).toFixed(0)}%</span>
+                    <span className="stat-value roi">{(plan.dailyROI * 100).toFixed(1)}%</span>
                 </div>
                 <div className="stat-item">
                     <span className="stat-label">Duration</span>
@@ -197,8 +248,12 @@ const InvestmentPlanCard = ({ plan, currentInvestment, onSelectPlan, index }) =>
     );
 };
 
+/**
+ * Main Dashboard Page component.
+ */
 const DashboardPage = () => {
     const navigate = useNavigate();
+    // Assuming useAuth provides the necessary Firebase context and user details.
     const { db, userId, isAuthReady, loading: authLoading, authError, appId, userProfile, user, isAdmin } = useAuth();
 
     const firstName = userProfile?.fullName ||
@@ -225,13 +280,16 @@ const DashboardPage = () => {
 
     const isSystemLoading = authLoading || !isAuthReady || !db || !userId || loading;
 
-    // --- NEW: Dark mode state and toggle handler ---
-    const [isDarkMode, setIsDarkMode] = useState(() => {
-        // Initialize from local storage or system preference
+    // --- UPDATED: Initial state is now always light mode (false) on first load. ---
+    const [isDarkMode, setIsDarkMode] = useState(false);
+
+    useEffect(() => {
+        // This effect will run once on mount to check for a stored theme.
         const storedMode = localStorage.getItem('theme');
-        if (storedMode) return storedMode === 'dark';
-        return window.matchMedia('(prefers-color-scheme: dark)').matches;
-    });
+        if (storedMode === 'dark') {
+            setIsDarkMode(true);
+        }
+    }, []);
 
     const handleThemeToggle = useCallback(() => {
         setIsDarkMode(prevMode => {
@@ -248,7 +306,7 @@ const DashboardPage = () => {
     }, []);
 
     useEffect(() => {
-        // Apply the initial theme on component mount
+        // This effect applies the theme whenever isDarkMode state changes.
         if (isDarkMode) {
             document.body.classList.add('dark');
         } else {
@@ -281,7 +339,7 @@ const DashboardPage = () => {
     };
 
     const calculateAndUpdateBalance = useCallback(async (data) => {
-        if (!data.currentInvestment || !data.investmentStartDate) {
+        if (!data.currentInvestment || !data.investmentStartDate || !data.totalInvested) {
             return data;
         }
 
@@ -361,6 +419,7 @@ const DashboardPage = () => {
                 updatedBy: user?.email || 'admin'
             };
 
+            // Logic to update user balance on approved deposits
             if (newStatus === 'approved' && transactionData.type === 'deposit') {
                 const userDashboardRef = doc(db, 'artifacts', appId, 'users', targetUserId, 'dashboardData', 'data');
                 const dashboardDoc = await getDoc(userDashboardRef);
@@ -368,15 +427,17 @@ const DashboardPage = () => {
                 if (dashboardDoc.exists()) {
                     const currentData = dashboardDoc.data();
                     const newTotalInvested = (currentData.totalInvested || 0) + transactionData.amount;
+                    const investmentStartDate = currentData.investmentStartDate || Timestamp.now();
 
                     await updateDoc(userDashboardRef, {
                         totalInvested: newTotalInvested,
-                        investmentStartDate: currentData.investmentStartDate || Timestamp.now(),
+                        investmentStartDate: investmentStartDate,
                         updatedAt: Timestamp.now()
                     });
                 }
             }
 
+            // Logic to handle completed withdrawals
             if (newStatus === 'completed' && transactionData.type === 'withdrawal') {
                 await handleWithdrawal(transactionData.amount);
             }
@@ -395,6 +456,7 @@ const DashboardPage = () => {
 
         const unsubscribers = [];
 
+        // Subscribe to dashboard data
         const dashboardRef = doc(db, 'artifacts', appId, 'users', userId, 'dashboardData', 'data');
         const unsubDashboard = onSnapshot(dashboardRef, async (docSnap) => {
             if (docSnap.exists()) {
@@ -442,6 +504,7 @@ const DashboardPage = () => {
             setLoading(false);
         });
 
+        // Subscribe to transactions
         const transactionsRef = collection(db, 'artifacts', appId, 'users', userId, 'transactions');
         const q = query(transactionsRef, orderBy('timestamp', 'desc'));
         const unsubTransactions = onSnapshot(q, (snapshot) => {
@@ -465,19 +528,27 @@ const DashboardPage = () => {
                 const updatedData = await calculateAndUpdateBalance(dashboardData);
                 setDashboardData(updatedData);
             }
-        }, 3600000);
+        }, 3600000); // Check for updates every hour
 
         return () => clearInterval(interval);
     }, [dashboardData, calculateAndUpdateBalance, isSystemLoading]);
 
     const handleSelectPlan = useCallback((plan) => {
-        navigate('/deposit');
+        navigate('/deposit'); // Redirect to the deposit page to start the investment
     }, [navigate]);
 
     const filteredTransactions = transactions.filter(transaction => {
         if (statusFilter === 'all') return true;
         return (transaction.status || 'pending') === statusFilter;
     });
+
+    const getPlanProgress = () => {
+        if (!dashboardData.currentInvestment || !dashboardData.investmentStartDate) return 0;
+        const plan = getPlanById(dashboardData.currentInvestment.id);
+        if (!plan) return 0;
+        const daysSinceStart = calculateDaysSinceStart(dashboardData.investmentStartDate);
+        return Math.min((daysSinceStart / plan.duration) * 100, 100);
+    };
 
     if (isSystemLoading) {
         return (
@@ -489,25 +560,9 @@ const DashboardPage = () => {
         );
     }
 
-    const getPlanProgress = () => {
-        if (!dashboardData.currentInvestment || !dashboardData.investmentStartDate) return 0;
-        const plan = getPlanById(dashboardData.currentInvestment.id);
-        if (!plan) return 0;
-        const daysSinceStart = calculateDaysSinceStart(dashboardData.investmentStartDate);
-        return Math.min((daysSinceStart / plan.duration) * 100, 100);
-    };
-
     return (
         <div className="dashboard">
             <div className="dashboard-content">
-                {/* --- NEW: Dark mode toggle button is now correctly placed --- */}
-                <button
-                    onClick={handleThemeToggle}
-                    className="theme-toggle-btn"
-                    title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-                >
-                    {isDarkMode ? '☀️' : '🌙'}
-                </button>
                 {/* Animated Background */}
                 <div className="bg-animation">
                     <div className="floating-shape shape-1"></div>
@@ -522,12 +577,20 @@ const DashboardPage = () => {
                             <h1 className="welcome-title">Welcome, <span className="username">{firstName}</span></h1>
                             <p className="welcome-subtitle">Your financial journey continues here</p>
                         </div>
+                        {/* --- The theme toggle button is now inside the header's flexbox container --- */}
                         <div className="header-actions">
                             {isAdmin && (
                                 <button onClick={() => navigate('/admin')} className="action-btn admin-dashboard-btn">
                                     Admin Dashboard
                                 </button>
                             )}
+                            <button
+                                onClick={handleThemeToggle}
+                                className="theme-toggle-btn"
+                                title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                            >
+                                {isDarkMode ? '☀️' : '🌙'}
+                            </button>
                         </div>
                     </div>
                 </header>
@@ -676,7 +739,6 @@ const DashboardPage = () => {
                 </section>
             </div>
 
-            {/* Info Modal */}
             {showInfoModal && (
                 <div className="modal-overlay">
                     <div className="modal-container">
