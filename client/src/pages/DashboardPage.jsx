@@ -163,7 +163,7 @@ const InvestmentPlanCard = ({ plan, currentInvestment, onSelectPlan, index }) =>
             {isActive && <div className="active-badge"><span>ACTIVE</span></div>}
 
             <div className={`plan-icon-wrapper bg-gradient-to-br ${plan.gradient}`}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg xmlns="http://www.w3.org/2003/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
                 </svg>
             </div>
@@ -225,11 +225,36 @@ const DashboardPage = () => {
 
     const isSystemLoading = authLoading || !isAuthReady || !db || !userId || loading;
 
-    // --- NEW: Dark mode toggle handler ---
-    const handleThemeToggle = () => {
-        // Toggles the 'dark' class directly on the body element
-        document.body.classList.toggle('dark');
-    };
+    // --- NEW: Dark mode state and toggle handler ---
+    const [isDarkMode, setIsDarkMode] = useState(() => {
+        // Initialize from local storage or system preference
+        const storedMode = localStorage.getItem('theme');
+        if (storedMode) return storedMode === 'dark';
+        return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    });
+
+    const handleThemeToggle = useCallback(() => {
+        setIsDarkMode(prevMode => {
+            const newMode = !prevMode;
+            if (newMode) {
+                document.body.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+            } else {
+                document.body.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+            }
+            return newMode;
+        });
+    }, []);
+
+    useEffect(() => {
+        // Apply the initial theme on component mount
+        if (isDarkMode) {
+            document.body.classList.add('dark');
+        } else {
+            document.body.classList.remove('dark');
+        }
+    }, [isDarkMode]);
 
     const getPlanById = useCallback((planId) => {
         return INVESTMENT_PLANS.find(p => p.id === planId) || null;
@@ -472,13 +497,10 @@ const DashboardPage = () => {
         return Math.min((daysSinceStart / plan.duration) * 100, 100);
     };
 
-    // --- NEW: Check if dark mode is active to show the correct emoji ---
-    const isDarkMode = document.body.classList.contains('dark');
-
     return (
         <div className="dashboard">
             <div className="dashboard-content">
-                {/* Theme Toggle */}
+                {/* --- NEW: Dark mode toggle button is now correctly placed --- */}
                 <button
                     onClick={handleThemeToggle}
                     className="theme-toggle-btn"
@@ -486,7 +508,6 @@ const DashboardPage = () => {
                 >
                     {isDarkMode ? '☀️' : '🌙'}
                 </button>
-
                 {/* Animated Background */}
                 <div className="bg-animation">
                     <div className="floating-shape shape-1"></div>
