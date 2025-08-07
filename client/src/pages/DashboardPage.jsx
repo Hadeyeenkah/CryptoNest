@@ -1,755 +1,1364 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { doc, getDoc, setDoc, onSnapshot, collection, query, orderBy, Timestamp, updateDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, onSnapshot, collection, query, orderBy, Timestamp, updateDoc, getDocs } from "firebase/firestore";
 
 import { useAuth } from '../contexts/AuthContext.jsx';
-import './dashboard.css';
+import './dashboard.css'; // Corrected import path for CSS
 
-/**
- * Helper function to format a number as a currency string.
- * @param {number} value The number to format.
- * @returns {string} The formatted currency string.
- */
+// Helper function to format numbers as currency
 const formatCurrency = (value) => {
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    }).format(value);
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
 };
 
-/**
- * Helper function to capitalize the first letter of a string.
- * @param {string} str The string to capitalize.
- * @returns {string} The capitalized string.
- */
-const capitalize = (str) => str ? str.charAt(0).toUpperCase() + str.slice(1) : "";
+// Helper function to capitalize the first letter of a string
+const capitalize = (str) =>
+  str ? str.charAt(0).toUpperCase() + str.slice(1) : "";
 
-/**
- * Helper function to get a human-readable display text for a transaction status.
- * @param {string} status The status key (e.g., 'pending').
- * @returns {string} The display text (e.g., 'Pending').
- */
+// Helper function to get status display text
 const getStatusDisplayText = (status) => {
-    const statusMap = {
-        'pending': 'Pending', 'processing': 'Processing', 'approved': 'Approved',
-        'completed': 'Completed', 'rejected': 'Rejected', 'failed': 'Failed',
-        'declined': 'Declined', 'cancelled': 'Cancelled',
-    };
-    return statusMap[status] || capitalize(status);
+  const statusMap = {
+    'pending': 'Pending',
+    'processing': 'Processing',
+    'approved': 'Approved',
+    'completed': 'Completed',
+    'rejected': 'Rejected',
+    'failed': 'Failed',
+    'declined': 'Declined',
+    'cancelled': 'Cancelled',
+  };
+  return statusMap[status] || capitalize(status);
 };
 
-/**
- * Helper function to get an icon for a transaction status.
- * @param {string} status The status key.
- * @returns {string} The emoji icon.
- */
+// Helper function to get status icon
 const getStatusIcon = (status) => {
-    switch (status) {
-        case 'approved':
-        case 'completed': return '✓';
-        case 'rejected':
-        case 'failed':
-        case 'declined':
-        case 'cancelled': return '✗';
-        case 'processing': return '⟳';
-        case 'pending':
-        default: return '●';
-    }
+  switch (status) {
+    case 'approved':
+    case 'completed':
+      return '✓';
+    case 'rejected':
+    case 'failed':
+    case 'declined':
+    case 'cancelled':
+      return '✗';
+    case 'processing':
+      return '⟳';
+    case 'pending':
+    default:
+      return '●';
+  }
 };
 
-/**
- * Hardcoded list of investment plans.
- */
+// Define investment plans as constants
 const INVESTMENT_PLANS = [
-    {
-        id: 'basic', name: 'Basic Plan', dailyROI: 0.001, minInvestment: 500, maxInvestment: 1000,
-        description: 'A solid start for your investment journey.', gradient: 'from-blue-500 to-purple-600',
-        duration: 30
-    },
-    {
-        id: 'gold', name: 'Gold Plan', dailyROI: 0.002, minInvestment: 1001, maxInvestment: 5000,
-        description: 'Accelerate your returns with higher potential.', gradient: 'from-yellow-400 to-orange-500',
-        duration: 30
-    },
-    {
-        id: 'platinum', name: 'Platinum Plan', dailyROI: 0.003, minInvestment: 5001, maxInvestment: 100000,
-        description: 'Maximize your earnings with our exclusive plan.', gradient: 'from-purple-500 to-pink-600',
-        duration: 30
-    },
+  {
+    id: 'basic',
+    name: 'Basic Plan',
+    dailyROI: 0.10, // 10% daily ROI
+    minInvestment: 500,
+    maxInvestment: 1000,
+    description: 'A solid start for your investment journey.',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+      </svg>
+    ),
+    gradient: 'from-blue-500 to-purple-600'
+  },
+  {
+    id: 'gold',
+    name: 'Gold Plan',
+    dailyROI: 0.20, // 20% daily ROI
+    minInvestment: 1001,
+    maxInvestment: 5000,
+    description: 'Accelerate your returns with higher potential.',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 8c1.657 0 3 .895 3 2s-1.343 2-3 2-3-.895-3-2 1.343-2 3-2zM12 8V3m0 5v8m0 0v3.010M12 16h3.010M12 16H8.990m0 0l-1.5-1.5M12 16l1.5-1.5M12 16l-1.5 1.5M12 16l1.5 1.5" />
+      </svg>
+    ),
+    gradient: 'from-yellow-400 to-orange-500'
+  },
+  {
+    id: 'platinum',
+    name: 'Platinum Plan',
+    dailyROI: 0.30, // 30% daily ROI
+    minInvestment: 5001,
+    maxInvestment: 100000,
+    description: 'Maximize your earnings with our exclusive plan.',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.163 2.163V8a2 2 0 001.07 1.602l3.252 1.832a2 2 0 000 3.536l-3.252 1.832A2 2 0 0013 16v1.837L10.837 21M3 12h.01M17 12h.01M12 3h.01M12 21h.01" />
+      </svg>
+    ),
+    gradient: 'from-purple-500 to-pink-600'
+  },
 ];
 
-/**
- * Calculates the current account balance.
- * @param {number} totalInvested The total amount invested.
- * @param {number} accumulatedEarnings The total earnings.
- * @param {number} totalWithdrawals The total amount withdrawn.
- * @returns {number} The current balance.
- */
-const calculateCurrentBalance = (totalInvested, accumulatedEarnings, totalWithdrawals) => {
-    return totalInvested + accumulatedEarnings - totalWithdrawals;
-};
-
-/**
- * Calculates the number of days since a given start date.
- * @param {Date | Timestamp} startDate The starting date.
- * @returns {number} The number of full days passed.
- */
-const calculateDaysSinceStart = (startDate) => {
-    if (!startDate) return 0;
-    const now = new Date();
-    const start = startDate instanceof Date ? startDate : startDate.toDate();
-    const diffTime = Math.abs(now - start);
-    return Math.floor(diffTime / (1000 * 60 * 60 * 24));
-};
-
-/**
- * Calculates accumulated earnings based on total invested, daily ROI, and duration.
- * @param {number} totalInvested The total amount invested.
- * @param {number} dailyROI The daily return on investment rate.
- * @param {number} daysSinceStart The number of days the investment has been active.
- * @param {number} maxDays The maximum duration of the plan.
- * @returns {number} The calculated accumulated earnings.
- */
-const calculateAccumulatedEarnings = (totalInvested, dailyROI, daysSinceStart, maxDays) => {
-    const effectiveDays = Math.min(daysSinceStart, maxDays);
-    return totalInvested * dailyROI * effectiveDays;
-};
-
-/**
- * A styled component for transaction status badges.
- */
+// TransactionStatusBadge Component
 const TransactionStatusBadge = ({ status, showIcon = false, onClick = null }) => {
-    const getStatusClass = (status) => {
-        const baseClass = "inline-flex items-center px-2 py-1 rounded-full text-sm font-medium transition-colors cursor-pointer hover:opacity-80";
-        switch (status) {
-            case 'completed':
-            case 'approved': return `${baseClass} bg-green-100 text-green-800`;
-            case 'pending': return `${baseClass} bg-yellow-100 text-yellow-800`;
-            case 'processing': return `${baseClass} bg-blue-100 text-blue-800`;
-            default: return `${baseClass} bg-red-100 text-red-800`;
-        }
-    };
-
-    return (
-        <span className={getStatusClass(status)} onClick={onClick} title="Click to view transaction details">
-            {showIcon && <span className="mr-1">{getStatusIcon(status)}</span>}
-            {getStatusDisplayText(status)}
-        </span>
-    );
+  const statusClass = `inline-flex items-center px-2 py-1 rounded-full text-sm font-medium transition-colors cursor-pointer hover:opacity-80 ${
+    status === 'completed' || status === 'approved' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+    status === 'pending' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+    status === 'processing' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+    'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+  }`;
+  
+  return (
+    <span 
+      className={statusClass}
+      onClick={onClick}
+      title="Click to view transaction details"
+    >
+      {showIcon && <span className="mr-1">{getStatusIcon(status)}</span>}
+      {getStatusDisplayText(status)}
+    </span>
+  );
 };
 
-/**
- * A styled component for admin controls on a transaction.
- */
+// Enhanced Admin Transaction Control Component
 const AdminTransactionControl = ({ transaction, onStatusUpdate, isLoading = false }) => {
-    const [isUpdating, setIsUpdating] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
 
-    const handleStatusChange = async (newStatus) => {
-        if (isUpdating || isLoading) return;
-        setIsUpdating(true);
-        try {
-            await onStatusUpdate(transaction.id, newStatus, transaction.userId);
-        } catch (error) {
-            console.error('Error updating transaction status:', error);
-        } finally {
-            setIsUpdating(false);
-        }
-    };
+  const handleStatusChange = async (newStatus) => {
+    if (isUpdating || isLoading) return;
+    
+    setIsUpdating(true);
+    try {
+      await onStatusUpdate(transaction.id, newStatus, transaction.userId);
+    } catch (error) {
+      console.error('Error updating transaction status:', error);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
-    const getAvailableActions = (currentStatus) => {
-        const actionMap = {
-            'pending': [
-                { status: 'processing', label: 'Process', color: 'blue', icon: '⟳' },
-                { status: 'approved', label: 'Approve', color: 'green', icon: '✓' },
-                { status: 'rejected', label: 'Reject', color: 'red', icon: '✗' }
-            ],
-            'processing': [
-                { status: 'approved', label: 'Approve', color: 'green', icon: '✓' },
-                { status: 'rejected', label: 'Reject', color: 'red', icon: '✗' },
-                { status: 'cancelled', label: 'Cancel', color: 'gray', icon: '✗' }
-            ],
-            'approved': [
-                { status: 'completed', label: 'Complete', color: 'green', icon: '✓' },
-                { status: 'cancelled', label: 'Cancel', color: 'gray', icon: '✗' }
-            ]
-        };
-        return actionMap[currentStatus] || [];
-    };
+  const getAvailableActions = (currentStatus) => {
+    switch (currentStatus) {
+      case 'pending':
+        return [
+          { status: 'processing', label: 'Process', color: 'blue', icon: '⟳' },
+          { status: 'approved', label: 'Approve', color: 'green', icon: '✓' },
+          { status: 'rejected', label: 'Reject', color: 'red', icon: '✗' }
+        ];
+      case 'processing':
+        return [
+          { status: 'approved', label: 'Approve', color: 'green', icon: '✓' },
+          { status: 'rejected', label: 'Reject', color: 'red', icon: '✗' },
+          { status: 'cancelled', label: 'Cancel', color: 'gray', icon: '✗' }
+        ];
+      case 'approved':
+        return [
+          { status: 'completed', label: 'Complete', color: 'green', icon: '✓' },
+          { status: 'cancelled', label: 'Cancel', color: 'gray', icon: '✗' }
+        ];
+      default:
+        return [];
+    }
+  };
 
-    const actions = getAvailableActions(transaction.status || 'pending');
-    if (actions.length === 0) return <div className="text-sm text-gray-500 italic">No actions available</div>;
+  const actions = getAvailableActions(transaction.status || 'pending');
 
+  if (actions.length === 0) {
     return (
-        <div className="flex flex-wrap gap-2 mt-2">
-            {actions.map((action) => (
-                <button
-                    key={action.status}
-                    onClick={() => handleStatusChange(action.status)}
-                    disabled={isUpdating || isLoading}
-                    className={`px-3 py-1 text-xs rounded-md font-medium transition-all duration-200 flex items-center gap-1
-            ${action.color === 'green' ? 'bg-green-100 text-green-700 hover:bg-green-200 hover:shadow-md' :
-                            action.color === 'blue' ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 hover:shadow-md' :
-                                action.color === 'red' ? 'bg-red-100 text-red-700 hover:bg-red-200 hover:shadow-md' :
-                                    'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:shadow-md'
-                        } ${(isUpdating || isLoading) ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'}`}
-                >
-                    <span>{action.icon}</span>
-                    {isUpdating ? 'Updating...' : action.label}
-                </button>
-            ))}
-        </div>
+      <div className="text-sm text-gray-500 italic">
+        No actions available
+      </div>
     );
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2 mt-2">
+      {actions.map((action) => (
+        <button
+          key={action.status}
+          onClick={() => handleStatusChange(action.status)}
+          disabled={isUpdating || isLoading}
+          className={`px-3 py-1 text-xs rounded-md font-medium transition-all duration-200 flex items-center gap-1 ${
+            action.color === 'green' ? 'bg-green-100 text-green-700 hover:bg-green-200 hover:shadow-md' :
+            action.color === 'blue' ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 hover:shadow-md' :
+            action.color === 'red' ? 'bg-red-100 text-red-700 hover:bg-red-200 hover:shadow-md' :
+            'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:shadow-md'
+          } ${(isUpdating || isLoading) ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'}`}
+          title={`Change status to ${action.label.toLowerCase()}`}
+        >
+          <span>{action.icon}</span>
+          {isUpdating ? 'Updating...' : action.label}
+        </button>
+      ))}
+    </div>
+  );
 };
 
-/**
- * A card component for displaying an investment plan.
- */
-const InvestmentPlanCard = ({ plan, currentInvestment, onSelectPlan, index }) => {
-    const isActive = currentInvestment && currentInvestment.id === plan.id;
+// TransactionStatusFilter Component
+const TransactionStatusFilter = ({ activeFilter, onFilterChange, transactions }) => {
+  const statusCounts = transactions.reduce((acc, transaction) => {
+    const status = transaction.status || 'pending';
+    acc[status] = (acc[status] || 0) + 1;
+    acc.all = (acc.all || 0) + 1;
+    return acc;
+  }, {});
 
-    return (
-        <div className={`plan-card ${isActive ? 'plan-card-active' : ''}`} style={{ animationDelay: `${index * 0.1}s` }}>
-            {isActive && <div className="active-badge"><span>ACTIVE</span></div>}
+  const filters = [
+    { key: 'all', label: 'All', count: statusCounts.all || 0, color: 'gray' },
+    { key: 'pending', label: 'Pending', count: statusCounts.pending || 0, color: 'yellow' },
+    { key: 'processing', label: 'Processing', count: statusCounts.processing || 0, color: 'blue' },
+    { key: 'approved', label: 'Approved', count: statusCounts.approved || 0, color: 'green' },
+    { key: 'completed', label: 'Completed', count: statusCounts.completed || 0, color: 'emerald' },
+    { key: 'rejected', label: 'Rejected', count: statusCounts.rejected || 0, color: 'red' },
+    { key: 'declined', label: 'Declined', count: statusCounts.declined || 0, color: 'red' },
+    { key: 'failed', label: 'Failed', count: statusCounts.failed || 0, color: 'red' },
+    { key: 'cancelled', label: 'Cancelled', count: statusCounts.cancelled || 0, color: 'gray' },
+  ];
 
-            <div className={`plan-icon-wrapper bg-gradient-to-br ${plan.gradient}`}>
-                <svg xmlns="http://www.w3.org/2003/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-                </svg>
-            </div>
-
-            <h3 className="plan-title">{plan.name}</h3>
-            <p className="plan-description">{plan.description}</p>
-
-            <div className="plan-stats">
-                <div className="stat-item">
-                    <span className="stat-label">Daily ROI</span>
-                    <span className="stat-value roi">{(plan.dailyROI * 100).toFixed(1)}%</span>
-                </div>
-                <div className="stat-item">
-                    <span className="stat-label">Duration</span>
-                    <span className="stat-value">{plan.duration} days</span>
-                </div>
-                <div className="stat-item">
-                    <span className="stat-label">Min Investment</span>
-                    <span className="stat-value">{formatCurrency(plan.minInvestment)}</span>
-                </div>
-            </div>
-
-            <button
-                onClick={() => onSelectPlan(plan)}
-                disabled={isActive}
-                className={`plan-button ${isActive ? 'plan-button-active' : ''}`}
-            >
-                {isActive ? 'Currently Active' : 'Select Plan'}
-            </button>
-        </div>
-    );
+  return (
+    <div className="flex flex-wrap gap-3 mb-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+      <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mr-2 flex items-center">
+        Filter by status:
+      </div>
+      {filters.map(filter => (
+        // Only render filters that have at least one transaction or are the active filter
+        (filter.count > 0 || activeFilter === filter.key) && (
+          <button
+            key={filter.key}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
+              activeFilter === filter.key 
+                ? filter.color === 'yellow' ? 'bg-yellow-500 text-white shadow-md' :
+                  filter.color === 'blue' ? 'bg-blue-500 text-white shadow-md' :
+                  filter.color === 'green' ? 'bg-green-500 text-white shadow-md' :
+                  filter.color === 'emerald' ? 'bg-emerald-500 text-white shadow-md' :
+                  filter.color === 'red' ? 'bg-red-500 text-white shadow-md' :
+                  'bg-gray-500 text-white shadow-md'
+                : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 dark:border-gray-600 hover:shadow-md'
+            } hover:scale-105`}
+            onClick={() => onFilterChange(filter.key)}
+          >
+            <span className={`inline-block w-2 h-2 rounded-full ${
+              filter.color === 'yellow' ? 'bg-yellow-400' :
+              filter.color === 'blue' ? 'bg-blue-400' :
+              filter.color === 'green' ? 'bg-green-400' :
+              filter.color === 'emerald' ? 'bg-emerald-400' :
+              filter.color === 'red' ? 'bg-red-400' :
+              'bg-gray-400'
+            }`}></span>
+            {filter.label}
+            <span className={`px-2 py-0.5 text-xs rounded-full ${
+              activeFilter === filter.key 
+                ? 'bg-white bg-opacity-20 text-white' 
+                : 'bg-gray-100 text-gray-600 dark:bg-gray-600 dark:text-gray-300'
+            }`}>
+              {filter.count}
+            </span>
+          </button>
+        )
+      ))}
+    </div>
+  );
 };
 
-/**
- * Main Dashboard Page component.
- */
-const DashboardPage = () => {
-    const navigate = useNavigate();
-    // Assuming useAuth provides the necessary Firebase context and user details.
-    const { db, userId, isAuthReady, loading: authLoading, authError, appId, userProfile, user, isAdmin } = useAuth();
+// TransactionStatusModal Component
+const TransactionStatusModal = ({ show, transaction, onClose }) => {
+  if (!show || !transaction) return null;
 
-    const firstName = userProfile?.fullName ||
-        userProfile?.displayName ||
-        (user?.email ? capitalize(user.email.split("@")[0].split(".")[0]) : null) ||
-        "User";
-
-    const [dashboardData, setDashboardData] = useState({
-        currentInvestment: null,
-        totalInvested: 0,
-        accumulatedEarnings: 0,
-        totalWithdrawals: 0,
-        currentBalance: 0,
-        investmentStartDate: null,
-        lastEarningsUpdate: null
+  const getTimelineData = (transaction) => {
+    const timeline = [];
+    const createdDate = transaction.timestamp?.toDate ? transaction.timestamp.toDate() : new Date(transaction.timestamp);
+    
+    // Always show created/submitted
+    timeline.push({
+      status: 'pending',
+      title: 'Transaction Submitted',
+      description: `${capitalize(transaction.type)} request submitted for ${formatCurrency(transaction.amount)}`,
+      timestamp: createdDate,
+      completed: true
     });
 
-    const [transactions, setTransactions] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [statusFilter, setStatusFilter] = useState('pending');
-    const [isBalanceHidden, setIsBalanceHidden] = useState(false);
-    const [showInfoModal, setShowInfoModal] = useState(false);
-    const [infoModal, setInfoModal] = useState({ title: '', message: '' });
-
-    const isSystemLoading = authLoading || !isAuthReady || !db || !userId || loading;
-
-    // --- UPDATED: Initial state for dark mode is now explicitly false (light mode) ---
-    const [isDarkMode, setIsDarkMode] = useState(() => {
-        const storedMode = localStorage.getItem('theme');
-        // If a theme is stored, use it. Otherwise, default to light mode (false).
-        return storedMode === 'dark';
-    });
-
-    const handleThemeToggle = useCallback(() => {
-        setIsDarkMode(prevMode => {
-            const newMode = !prevMode;
-            if (newMode) {
-                document.body.classList.add('dark');
-                localStorage.setItem('theme', 'dark');
-            } else {
-                document.body.classList.remove('dark');
-                localStorage.setItem('theme', 'light');
-            }
-            return newMode;
-        });
-    }, []);
-
-    useEffect(() => {
-        // Apply the initial theme on component mount
-        if (isDarkMode) {
-            document.body.classList.add('dark');
-        } else {
-            document.body.classList.remove('dark');
-        }
-    }, [isDarkMode]);
-
-    const getPlanById = useCallback((planId) => {
-        return INVESTMENT_PLANS.find(p => p.id === planId) || null;
-    }, []);
-
-    const updateFirestoreData = useCallback(async (updates) => {
-        if (!db || !userId || !appId) return;
-
-        const userDocRef = doc(db, 'artifacts', appId, 'users', userId, 'dashboardData', 'data');
-        const payload = { ...updates, updatedAt: Timestamp.now() };
-
-        try {
-            await setDoc(userDocRef, payload, { merge: true });
-            console.log("Dashboard data updated in Firestore");
-        } catch (error) {
-            console.error("Error updating Firestore:", error);
-            showInfoModalHandler('Error', `Failed to update data: ${error.message}`);
-        }
-    }, [db, userId, appId]);
-
-    const showInfoModalHandler = (title, message) => {
-        setInfoModal({ title, message });
-        setShowInfoModal(true);
-    };
-
-    const calculateAndUpdateBalance = useCallback(async (data) => {
-        if (!data.currentInvestment || !data.investmentStartDate || !data.totalInvested) {
-            return data;
-        }
-
-        const plan = getPlanById(data.currentInvestment.id);
-        if (!plan) return data;
-
-        const daysSinceStart = calculateDaysSinceStart(data.investmentStartDate);
-        const newAccumulatedEarnings = calculateAccumulatedEarnings(
-            data.totalInvested,
-            plan.dailyROI,
-            daysSinceStart,
-            plan.duration
-        );
-
-        const newCurrentBalance = calculateCurrentBalance(
-            data.totalInvested,
-            newAccumulatedEarnings,
-            data.totalWithdrawals
-        );
-
-        const updatedData = {
-            ...data,
-            accumulatedEarnings: newAccumulatedEarnings,
-            currentBalance: newCurrentBalance,
-            lastEarningsUpdate: Timestamp.now()
-        };
-
-        if (Math.abs(newAccumulatedEarnings - data.accumulatedEarnings) >= 0.01) {
-            await updateFirestoreData({
-                accumulatedEarnings: newAccumulatedEarnings,
-                currentBalance: newCurrentBalance,
-                lastEarningsUpdate: Timestamp.now()
-            });
-        }
-
-        return updatedData;
-    }, [getPlanById, updateFirestoreData]);
-
-    const handleWithdrawal = useCallback(async (amount) => {
-        const newTotalWithdrawals = dashboardData.totalWithdrawals + amount;
-        const newCurrentBalance = calculateCurrentBalance(
-            dashboardData.totalInvested,
-            dashboardData.accumulatedEarnings,
-            newTotalWithdrawals
-        );
-
-        const updatedData = {
-            totalWithdrawals: newTotalWithdrawals,
-            currentBalance: newCurrentBalance
-        };
-
-        await updateFirestoreData(updatedData);
-        setDashboardData(prev => ({ ...prev, ...updatedData }));
-    }, [dashboardData, updateFirestoreData]);
-
-    const updateTransactionStatus = useCallback(async (transactionId, newStatus, transactionUserId = null) => {
-        if (!isAdmin) {
-            showInfoModalHandler('Error', 'You do not have permission to perform this action.');
-            return;
-        }
-
-        const targetUserId = transactionUserId || userId;
-
-        try {
-            const transactionRef = doc(db, 'artifacts', appId, 'users', targetUserId, 'transactions', transactionId);
-            const transactionDoc = await getDoc(transactionRef);
-
-            if (!transactionDoc.exists()) {
-                throw new Error('Transaction not found');
-            }
-
-            const transactionData = transactionDoc.data();
-
-            const updateData = {
-                status: newStatus,
-                updatedAt: Timestamp.now(),
-                updatedBy: user?.email || 'admin'
-            };
-
-            // Logic to update user balance on approved deposits
-            if (newStatus === 'approved' && transactionData.type === 'deposit') {
-                const userDashboardRef = doc(db, 'artifacts', appId, 'users', targetUserId, 'dashboardData', 'data');
-                const dashboardDoc = await getDoc(userDashboardRef);
-
-                if (dashboardDoc.exists()) {
-                    const currentData = dashboardDoc.data();
-                    const newTotalInvested = (currentData.totalInvested || 0) + transactionData.amount;
-                    const investmentStartDate = currentData.investmentStartDate || Timestamp.now();
-
-                    await updateDoc(userDashboardRef, {
-                        totalInvested: newTotalInvested,
-                        investmentStartDate: investmentStartDate,
-                        updatedAt: Timestamp.now()
-                    });
-                }
-            }
-
-            // Logic to handle completed withdrawals
-            if (newStatus === 'completed' && transactionData.type === 'withdrawal') {
-                await handleWithdrawal(transactionData.amount);
-            }
-
-            await updateDoc(transactionRef, updateData);
-            showInfoModalHandler('Success', `Transaction status updated to ${getStatusDisplayText(newStatus)}.`);
-
-        } catch (error) {
-            console.error('Error updating transaction status:', error);
-            showInfoModalHandler('Error', `Failed to update transaction: ${error.message}`);
-        }
-    }, [isAdmin, db, appId, userId, user, handleWithdrawal]);
-
-    useEffect(() => {
-        if (!db || !userId || !appId) return;
-
-        const unsubscribers = [];
-
-        // Subscribe to dashboard data
-        const dashboardRef = doc(db, 'artifacts', appId, 'users', userId, 'dashboardData', 'data');
-        const unsubDashboard = onSnapshot(dashboardRef, async (docSnap) => {
-            if (docSnap.exists()) {
-                const data = {
-                    currentInvestment: null,
-                    totalInvested: 0,
-                    accumulatedEarnings: 0,
-                    totalWithdrawals: 0,
-                    currentBalance: 0,
-                    investmentStartDate: null,
-                    lastEarningsUpdate: null,
-                    ...docSnap.data()
-                };
-
-                if (data.currentInvestment?.id) {
-                    data.currentInvestment = getPlanById(data.currentInvestment.id);
-                }
-
-                if (data.investmentStartDate?.toDate) {
-                    data.investmentStartDate = data.investmentStartDate.toDate();
-                }
-                if (data.lastEarningsUpdate?.toDate) {
-                    data.lastEarningsUpdate = data.lastEarningsUpdate.toDate();
-                }
-
-                const updatedData = await calculateAndUpdateBalance(data);
-                setDashboardData(updatedData);
-
-            } else {
-                const initialData = {
-                    currentInvestment: null,
-                    totalInvested: 0,
-                    accumulatedEarnings: 0,
-                    totalWithdrawals: 0,
-                    currentBalance: 0,
-                    investmentStartDate: null,
-                    lastEarningsUpdate: null,
-                    createdAt: Timestamp.now(),
-                    updatedAt: Timestamp.now()
-                };
-
-                await setDoc(dashboardRef, initialData);
-                setDashboardData(initialData);
-            }
-            setLoading(false);
-        });
-
-        // Subscribe to transactions
-        const transactionsRef = collection(db, 'artifacts', appId, 'users', userId, 'transactions');
-        const q = query(transactionsRef, orderBy('timestamp', 'desc'));
-        const unsubTransactions = onSnapshot(q, (snapshot) => {
-            const fetchedTransactions = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                status: doc.data().status || 'pending',
-                timestamp: doc.data().timestamp?.toDate?.() || new Date(doc.data().timestamp || Date.now())
-            }));
-            setTransactions(fetchedTransactions);
-        });
-
-        unsubscribers.push(unsubDashboard, unsubTransactions);
-
-        return () => unsubscribers.forEach(unsub => unsub());
-    }, [db, userId, appId, getPlanById, calculateAndUpdateBalance]);
-
-    useEffect(() => {
-        const interval = setInterval(async () => {
-            if (!isSystemLoading) {
-                const updatedData = await calculateAndUpdateBalance(dashboardData);
-                setDashboardData(updatedData);
-            }
-        }, 3600000); // Check for updates every hour
-
-        return () => clearInterval(interval);
-    }, [dashboardData, calculateAndUpdateBalance, isSystemLoading]);
-
-    const handleSelectPlan = useCallback((plan) => {
-        navigate('/deposit'); // Redirect to the deposit page to start the investment
-    }, [navigate]);
-
-    const filteredTransactions = transactions.filter(transaction => {
-        if (statusFilter === 'all') return true;
-        return (transaction.status || 'pending') === statusFilter;
-    });
-
-    const getPlanProgress = () => {
-        if (!dashboardData.currentInvestment || !dashboardData.investmentStartDate) return 0;
-        const plan = getPlanById(dashboardData.currentInvestment.id);
-        if (!plan) return 0;
-        const daysSinceStart = calculateDaysSinceStart(dashboardData.investmentStartDate);
-        return Math.min((daysSinceStart / plan.duration) * 100, 100);
-    };
-
-    if (isSystemLoading) {
-        return (
-            <div className="loading-screen">
-                <div className="spinner"></div>
-                <p>Loading your dashboard...</p>
-                {authError && <p style={{ color: "#ef4444" }}>Authentication Error: {authError}</p>}
-            </div>
-        );
+    // Add processing if status is beyond pending
+    if (['processing', 'approved', 'completed', 'rejected', 'failed', 'declined', 'cancelled'].includes(transaction.status)) {
+      timeline.push({
+        status: 'processing',
+        title: 'Under Review',
+        description: 'Transaction is being reviewed by our team',
+        timestamp: transaction.processingAt?.toDate ? transaction.processingAt.toDate() : 
+                   transaction.updatedAt?.toDate ? transaction.updatedAt.toDate() : 
+                   new Date(createdDate.getTime() + 5 * 60000),
+        completed: true
+      });
     }
 
-    return (
-        <div className="dashboard">
-            <div className="dashboard-content">
-                {/* Animated Background */}
-                <div className="bg-animation">
-                    <div className="floating-shape shape-1"></div>
-                    <div className="floating-shape shape-2"></div>
-                    <div className="floating-shape shape-3"></div>
-                </div>
+    // Add final status
+    if (['approved', 'completed', 'rejected', 'failed', 'declined', 'cancelled'].includes(transaction.status)) {
+      const finalStatusMessages = {
+        'approved': 'Transaction has been approved and is being processed',
+        'completed': 'Transaction completed successfully',
+        'rejected': 'Transaction was rejected due to validation issues',
+        'declined': 'Transaction was declined by administrator',
+        'cancelled': 'Transaction was cancelled',
+        'failed': 'Transaction failed to process due to technical issues'
+      };
 
-                {/* Header */}
-                <header className="dashboard-header">
-                    <div className="header-content">
-                        <div className="welcome-text">
-                            <h1 className="welcome-title">Welcome, <span className="username">{firstName}</span></h1>
-                            <p className="welcome-subtitle">Your financial journey continues here</p>
-                        </div>
-                        {/* --- UPDATED: The theme toggle button is now inside the header-actions div --- */}
-                        <div className="header-actions">
-                            {isAdmin && (
-                                <button onClick={() => navigate('/admin')} className="action-btn admin-dashboard-btn">
-                                    Admin Dashboard
-                                </button>
-                            )}
-                            <button
-                                onClick={handleThemeToggle}
-                                className="theme-toggle-btn"
-                                title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-                            >
-                                {isDarkMode ? '☀️' : '🌙'}
-                            </button>
-                        </div>
-                    </div>
-                </header>
+      timeline.push({
+        status: transaction.status,
+        title: getStatusDisplayText(transaction.status),
+        description: finalStatusMessages[transaction.status] || 'Status updated',
+        timestamp: transaction.approvedAt?.toDate ? transaction.approvedAt.toDate() :
+                   transaction.completedAt?.toDate ? transaction.completedAt.toDate() :
+                   transaction.updatedAt?.toDate ? transaction.updatedAt.toDate() : 
+                   new Date(createdDate.getTime() + 15 * 60000),
+        completed: true
+      });
+    }
 
-                {/* Stats Grid */}
-                <section className="stats-section">
-                    <div className="stats-grid">
-                        <div className="stat-card balance-card">
-                            <div className="stat-icon">💰</div>
-                            <div className="stat-content">
-                                <h3 className="stat-label">Current Balance</h3>
-                                <div className="stat-value">
-                                    <span>{isBalanceHidden ? '****' : formatCurrency(dashboardData.currentBalance)}</span>
-                                    <button
-                                        className="toggle-balance-btn"
-                                        onClick={() => setIsBalanceHidden(!isBalanceHidden)}
-                                        title={isBalanceHidden ? 'Show Balance' : 'Hide Balance'}
-                                    >
-                                        {isBalanceHidden ? '👁️' : '🙈'}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
+    return timeline;
+  };
 
-                        <div className="stat-card invested-card">
-                            <div className="stat-icon">📈</div>
-                            <div className="stat-content">
-                                <h3 className="stat-label">Total Invested</h3>
-                                <p className="stat-value">{formatCurrency(dashboardData.totalInvested)}</p>
-                            </div>
-                        </div>
+  const timelineData = getTimelineData(transaction);
 
-                        <div className="stat-card earnings-card">
-                            <div className="stat-icon">💵</div>
-                            <div className="stat-content">
-                                <h3 className="stat-label">Accumulated Earnings</h3>
-                                <p className="stat-value">{formatCurrency(dashboardData.accumulatedEarnings)}</p>
-                                <span className="stat-change positive">
-                                    {dashboardData.currentInvestment &&
-                                        `${getPlanProgress().toFixed(1)}% of ${dashboardData.currentInvestment.duration} days completed`
-                                    }
-                                </span>
-                            </div>
-                        </div>
-
-                        <div className="stat-card active-plan-card">
-                            <div className="stat-icon">🎯</div>
-                            <div className="stat-content">
-                                <h3 className="stat-label">Active Plan</h3>
-                                <p className="stat-value">
-                                    {dashboardData.currentInvestment ? dashboardData.currentInvestment.name : 'None'}
-                                </p>
-                                <span className="stat-change info">
-                                    {dashboardData.currentInvestment
-                                        ? `${(dashboardData.currentInvestment.dailyROI * 100).toFixed(1)}% Daily ROI`
-                                        : 'Select a plan to start'}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
-                {/* Investment Plans */}
-                <section className="plans-section">
-                    <div className="section-header">
-                        <h2 className="section-title">Investment Plans</h2>
-                        <p className="section-subtitle">Choose your investment duration and daily returns</p>
-                    </div>
-                    <div className="plans-grid">
-                        {INVESTMENT_PLANS.map((plan, index) => (
-                            <InvestmentPlanCard
-                                key={plan.id}
-                                plan={plan}
-                                currentInvestment={dashboardData.currentInvestment}
-                                onSelectPlan={handleSelectPlan}
-                                index={index}
-                            />
-                        ))}
-                    </div>
-                </section>
-
-                {/* Transaction History */}
-                <section className="transactions-history-section">
-                    <div className="section-header">
-                        <h2 className="section-title">Transaction History</h2>
-                    </div>
-
-                    {/* Status Filter */}
-                    <div className="flex flex-wrap gap-2 mb-4">
-                        {['all', 'pending', 'processing', 'approved', 'completed', 'rejected'].map(status => (
-                            <button
-                                key={status}
-                                onClick={() => setStatusFilter(status)}
-                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                                    statusFilter === status
-                                        ? 'bg-blue-500 text-white'
-                                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                                }`}
-                            >
-                                {capitalize(status)} ({transactions.filter(t => status === 'all' || t.status === status).length})
-                            </button>
-                        ))}
-                    </div>
-
-                    <div className="table-responsive">
-                        <table>
-                            <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Type</th>
-                                <th>Amount</th>
-                                <th>Status</th>
-                                {isAdmin && <th>Actions</th>}
-                            </tr>
-                            </thead>
-                            <tbody>
-                            {filteredTransactions.length > 0 ? (
-                                filteredTransactions.map((transaction) => (
-                                    <tr key={transaction.id}>
-                                        <td>{transaction.timestamp.toLocaleDateString()}</td>
-                                        <td>{capitalize(transaction.type)}</td>
-                                        <td className="font-semibold">{formatCurrency(transaction.amount)}</td>
-                                        <td>
-                                            <TransactionStatusBadge status={transaction.status} showIcon={true} />
-                                        </td>
-                                        {isAdmin && (
-                                            <td>
-                                                <AdminTransactionControl
-                                                    transaction={transaction}
-                                                    onStatusUpdate={updateTransactionStatus}
-                                                />
-                                            </td>
-                                        )}
-                                    </tr>
-                                ))
-                            ) : (
-                                <tr>
-                                    <td colSpan={isAdmin ? "5" : "4"} className="text-center py-8">
-                                        No transactions found for "{statusFilter}" status.
-                                    </td>
-                                </tr>
-                            )}
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-            </div>
-
-            {showInfoModal && (
-                <div className="modal-overlay">
-                    <div className="modal-container">
-                        <div className="modal-header">
-                            <h3 className="modal-title">{infoModal.title}</h3>
-                            <button onClick={() => setShowInfoModal(false)} className="modal-close">×</button>
-                        </div>
-                        <div className="modal-content">
-                            <p>{infoModal.message}</p>
-                        </div>
-                    </div>
-                </div>
-            )}
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white dark:bg-gray-800 rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Transaction Details</h3>
+          <button 
+            onClick={onClose} 
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
+        <div className="p-6">
+          <div className="grid grid-cols-2 gap-4 mb-6">
+            <div>
+              <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Transaction ID</div>
+              <div className="font-medium text-gray-900 dark:text-white text-sm break-all">{transaction.id}</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Type</div>
+              <div className="font-medium text-gray-900 dark:text-white">{capitalize(transaction.type)}</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Amount</div>
+              <div className="font-semibold text-lg text-gray-900 dark:text-white">{formatCurrency(transaction.amount)}</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Current Status</div>
+              <div className="mt-1">
+                <TransactionStatusBadge status={transaction.status || 'pending'} showIcon={true} />
+              </div>
+            </div>
+          </div>
+
+          {transaction.description && (
+            <div className="mb-6">
+              <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Description</div>
+              <div className="text-gray-900 dark:text-white">{transaction.description}</div>
+            </div>
+          )}
+
+          <div>
+            <h4 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12,6 12,12 16,14"/>
+              </svg>
+              Transaction Timeline
+            </h4>
+            <div className="space-y-4">
+              {timelineData.map((item, index) => (
+                <div key={index} className="flex items-start space-x-4">
+                  <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium border-2 ${
+                    item.status === 'completed' || item.status === 'approved' ? 'bg-green-100 text-green-600 border-green-200' :
+                    item.status === 'pending' ? 'bg-yellow-100 text-yellow-600 border-yellow-200' :
+                    item.status === 'processing' ? 'bg-blue-100 text-blue-600 border-blue-200' :
+                    'bg-red-100 text-red-600 border-red-200'
+                  }`}>
+                    {getStatusIcon(item.status)}
+                  </div>
+                  <div className="flex-1 pb-4">
+                    <div className="font-semibold text-gray-900 dark:text-white mb-1">{item.title}</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">{item.description}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-500 flex items-center gap-1">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12,6 12,12 16,14"/>
+                      </svg>
+                      {item.timestamp.toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// InvestmentPlanCard Component
+const InvestmentPlanCard = ({ plan, currentInvestment, onSelectPlan, index }) => {
+  const isActive = currentInvestment && currentInvestment.id === plan.id;
+
+  return (
+    <div
+      className={`plan-card ${isActive ? 'plan-card-active' : ''}`}
+      style={{ animationDelay: `${index * 0.1}s` }}
+    >
+      {isActive && (
+        <div className="active-badge">
+          <span>ACTIVE</span>
+        </div>
+      )}
+
+      <div className={`plan-icon-wrapper bg-gradient-to-br ${plan.gradient}`}>
+        {plan.icon}
+      </div>
+
+      <h3 className="plan-title">{plan.name}</h3>
+      <p className="plan-description">{plan.description}</p>
+
+      <div className="plan-stats">
+        <div className="stat-item">
+          <span className="stat-label">Daily ROI</span>
+          <span className="stat-value roi">{(plan.dailyROI * 100).toFixed(0)}%</span>
+        </div>
+        <div className="stat-item">
+          <span className="stat-label">Min Investment</span>
+          <span className="stat-value">{formatCurrency(plan.minInvestment)}</span>
+        </div>
+        <div className="stat-item">
+          <span className="stat-label">Max Investment</span>
+          <span className="stat-value">{formatCurrency(plan.maxInvestment)}</span>
+        </div>
+      </div>
+
+      <button
+        onClick={() => onSelectPlan(plan)}
+        disabled={isActive}
+        className={`plan-button ${isActive ? 'plan-button-active' : ''}`}
+      >
+        {isActive ? 'Currently Active' : 'Select Plan'}
+      </button>
+    </div>
+  );
+};
+
+// InvestmentPlansSection Component
+const InvestmentPlansSection = ({ currentInvestment, onSelectPlan }) => (
+  <section className="plans-section">
+    <div className="section-header">
+      <h2 className="section-title">Explore Investment Plans</h2>
+      <p className="section-subtitle">Choose the perfect plan to maximize your daily earnings potential.</p>
+    </div>
+    <div className="plans-grid">
+      {INVESTMENT_PLANS.map((plan, index) => (
+        <InvestmentPlanCard
+          key={plan.id}
+          plan={plan}
+          currentInvestment={currentInvestment}
+          onSelectPlan={onSelectPlan}
+          index={index}
+        />
+      ))}
+    </div>
+  </section>
+);
+
+// Modal Component
+const Modal = ({ show, title, children, onClose }) => {
+  if (!show) return null;
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-container">
+        <div className="modal-header">
+          <h3 className="modal-title">{title}</h3>
+          {onClose && (
+            <button onClick={onClose} className="modal-close">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+        <div className="modal-content">
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Main DashboardPage Component
+const DashboardPage = () => {
+  const navigate = useNavigate();
+
+  // Consume Firebase state from AuthContext
+  const { db, userId, isAuthReady, loading: authLoading, authError, appId, userProfile, user, isAdmin } = useAuth();
+
+  // Compute name fallback chain
+  const firstName =
+    userProfile?.fullName ||
+    userProfile?.displayName ||
+    (user?.email ? capitalize(user.email.split("@")[0].split(".")[0]) : null) ||
+    "User";
+
+  // Dashboard data states
+  const [currentInvestment, setCurrentInvestment] = useState(null);
+  const [balance, setBalance] = useState(0);
+  const [totalInvested, setTotalInvested] = useState(0);
+  const [transactions, setTransactions] = useState([]);
+  const [transactionOverview, setTransactionOverview] = useState(null);
+
+  // States for daily earnings calculation and animation
+  const [lastDailyEarningTimestamp, setLastDailyEarningTimestamp] = useState(null);
+  const [lastCalculatedDailyEarningAmount, setLastCalculatedDailyEarningAmount] = useState(0);
+  const [displayDailyEarnings, setDisplayDailyEarnings] = useState(0);
+
+  // UI state
+  const [showInfoModal, setShowInfoModal] = useState(false);
+  const [infoModalTitle, setInfoModalTitle] = useState('');
+  const [infoModalMessage, setInfoModalMessage] = useState('');
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isBalanceHidden, setIsBalanceHidden] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+
+  // Transaction status states for the modal
+  const [selectedTransaction, setSelectedTransaction] = useState(null);
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('pending'); // Default to pending
+
+  // Combined loading state for the dashboard
+  const isLoading = authLoading || !isAuthReady || !db || !userId;
+
+  // Helper to get the full plan object from its ID
+  const getPlanById = useCallback((planId) => {
+    return INVESTMENT_PLANS.find(p => p.id === planId) || null;
+  }, []);
+
+  // Filter transactions based on status
+  const filteredTransactions = transactions.filter(transaction => {
+    if (statusFilter === 'all') return true;
+    return (transaction.status || 'pending') === statusFilter;
+  });
+
+  // Handle transaction status click to open modal
+  const handleTransactionStatusClick = (transaction) => {
+    setSelectedTransaction(transaction);
+    setShowStatusModal(true);
+  };
+
+  // Function to update transaction overview in dashboard data
+  const updateTransactionOverview = useCallback(async (transactions) => {
+    if (!db || !userId || !appId) return;
+
+    try {
+      // Calculate status summary
+      const statusCounts = {
+        pending: 0,
+        processing: 0,
+        approved: 0,
+        completed: 0,
+        rejected: 0,
+        failed: 0,
+        declined: 0,
+        cancelled: 0
+      };
+
+      const statusAmounts = { ...statusCounts };
+      
+      transactions.forEach(transaction => {
+        const status = transaction.status || 'pending';
+        statusCounts[status] = (statusCounts[status] || 0) + 1;
+        statusAmounts[status] = (statusAmounts[status] || 0) + transaction.amount;
+      });
+
+      // Recent transactions by status
+      const recentTransactions = {
+        pending: transactions.filter(t => (t.status || 'pending') === 'pending').slice(0, 3),
+        processing: transactions.filter(t => t.status === 'processing').slice(0, 3),
+        completed: transactions.filter(t => t.status === 'completed').slice(0, 3)
+      };
+
+      const overview = {
+        counts: statusCounts,
+        amounts: statusAmounts,
+        recent: recentTransactions,
+        lastUpdated: Timestamp.now(),
+        totalTransactions: transactions.length
+      };
+
+      // Update dashboard data
+      const userDashboardRef = doc(db, 'artifacts', appId, 'users', userId, 'dashboardData', 'data');
+      await updateDoc(userDashboardRef, {
+        transactionOverview: overview,
+        updatedAt: Timestamp.now()
+      });
+
+      console.log('Transaction overview updated in dashboard data');
+
+    } catch (error) {
+      console.error('Error updating transaction overview:', error);
+    }
+  }, [db, userId, appId]);
+  const updateTransactionStatus = useCallback(async (transactionId, newStatus, transactionUserId = null) => {
+    if (!db || !appId || !isAdmin) {
+      console.error('Unauthorized or missing required data for transaction update');
+      setShowInfoModal(true);
+      setInfoModalTitle('Error');
+      setInfoModalMessage('You do not have permission to perform this action.');
+      return;
+    }
+
+    setIsUpdatingStatus(true);
+    const targetUserId = transactionUserId || userId;
+
+    try {
+      const transactionRef = doc(db, 'artifacts', appId, 'users', targetUserId, 'transactions', transactionId);
+      
+      // First, get the current transaction data
+      const transactionDoc = await getDoc(transactionRef);
+      if (!transactionDoc.exists()) {
+        throw new Error('Transaction not found');
+      }
+
+      const transactionData = transactionDoc.data();
+      
+      const updateData = {
+        status: newStatus,
+        updatedAt: Timestamp.now(),
+        updatedBy: user?.email || 'admin'
+      };
+
+      // Add specific timestamps for tracking
+      if (newStatus === 'processing') {
+        updateData.processingAt = Timestamp.now();
+      } else if (newStatus === 'approved') {
+        updateData.approvedAt = Timestamp.now();
+      } else if (newStatus === 'completed') {
+        updateData.completedAt = Timestamp.now();
+      }
+
+      // Handle balance updates for approved deposits
+      if (newStatus === 'approved' && transactionData.type === 'deposit') {
+        try {
+          // Update dashboard data
+          const userDashboardRef = doc(db, 'artifacts', appId, 'users', targetUserId, 'dashboardData', 'data');
+          const dashboardDoc = await getDoc(userDashboardRef);
+          
+          if (dashboardDoc.exists()) {
+            const dashboardData = dashboardDoc.data();
+            const newBalance = (dashboardData.balance || 0) + transactionData.amount;
+            const newTotalInvested = (dashboardData.totalInvested || 0) + transactionData.amount;
+            
+            await updateDoc(userDashboardRef, {
+              balance: newBalance,
+              totalInvested: newTotalInvested,
+              updatedAt: Timestamp.now()
+            });
+
+            // Update user profile balance
+            const userProfileRef = doc(db, 'artifacts', appId, 'users', targetUserId, 'profile', 'data');
+            const profileDoc = await getDoc(userProfileRef);
+            
+            if (profileDoc.exists()) {
+              await updateDoc(userProfileRef, {
+                balance: newBalance,
+                totalInvested: newTotalInvested,
+                updatedAt: Timestamp.now()
+              });
+            }
+          }
+        } catch (balanceError) {
+          console.error('Error updating balance:', balanceError);
+          // Continue with status update even if balance update fails
+        }
+      }
+
+      // Update the transaction status
+      await updateDoc(transactionRef, updateData);
+      
+      console.log(`Transaction ${transactionId} status updated to ${newStatus}`);
+      
+      setShowInfoModal(true);
+      setInfoModalTitle('Success');
+      setInfoModalMessage(`Transaction status successfully updated to ${getStatusDisplayText(newStatus)}.`);
+      
+    } catch (error) {
+      console.error('Error updating transaction status:', error);
+      setShowInfoModal(true);
+      setInfoModalTitle('Error');
+      setInfoModalMessage(`Failed to update transaction: ${error.message}`);
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  }, [db, userId, appId, isAdmin, user]);
+
+  // Effect to fetch and listen to user data from Firestore
+  useEffect(() => {
+    let unsubscribeDashboard = () => {};
+    let unsubscribeTransactions = () => {};
+
+    if (db && userId && isAuthReady && appId) {
+      const userDashboardDocRef = doc(db, 'artifacts', appId, 'users', userId, 'dashboardData', 'data');
+
+      unsubscribeDashboard = onSnapshot(userDashboardDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setBalance(data.balance || 0);
+          setLastCalculatedDailyEarningAmount(data.lastCalculatedDailyEarningAmount || 0);
+          setTotalInvested(data.totalInvested || 0);
+
+          if (data.currentInvestment && data.currentInvestment.id) {
+            setCurrentInvestment(getPlanById(data.currentInvestment.id));
+          } else {
+            setCurrentInvestment(null);
+          }
+
+          setLastDailyEarningTimestamp(data.lastDailyEarningTimestamp ? data.lastDailyEarningTimestamp.toDate() : null);
+
+          // Set transaction overview data if available
+          if (data.transactionOverview) {
+            setTransactionOverview(data.transactionOverview);
+          }
+
+          console.log("DashboardPage: Fetched dashboard data:", data);
+        } else {
+          // Initialize user dashboard data if it doesn't exist
+          const initialData = {
+            currentInvestment: null,
+            balance: 0, 
+            totalInvested: 0,
+            lastDailyEarningTimestamp: null,
+            lastCalculatedDailyEarningAmount: 0,
+            createdAt: Timestamp.now(), 
+            updatedAt: Timestamp.now(), 
+          };
+          setDoc(userDashboardDocRef, initialData)
+            .then(() => {
+              console.log("Initial user dashboard data set in Firestore.");
+              setBalance(initialData.balance);
+              setTotalInvested(initialData.totalInvested);
+              setLastDailyEarningTimestamp(initialData.lastDailyEarningTimestamp);
+              setLastCalculatedDailyEarningAmount(initialData.lastCalculatedDailyEarningAmount);
+            })
+            .catch(error => console.error("Error setting initial user dashboard data:", error));
+        }
+      }, (error) => {
+        console.error("Error fetching real-time dashboard data:", error);
+        setShowInfoModal(true);
+        setInfoModalTitle('Data Error');
+        setInfoModalMessage(`Failed to load dashboard data: ${error.message}. Please refresh.`);
+      });
+
+      // Listen to user's transactions with real-time updates
+      const transactionsCollectionRef = collection(db, 'artifacts', appId, 'users', userId, 'transactions');
+      const q = query(transactionsCollectionRef, orderBy('timestamp', 'desc'));
+
+      unsubscribeTransactions = onSnapshot(q, (snapshot) => {
+        const fetchedTransactions = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          // Ensure all transactions have a status, defaulting to 'pending'
+          status: doc.data().status || 'pending',
+          timestamp: doc.data().timestamp instanceof Timestamp
+                             ? doc.data().timestamp.toDate()
+                             : (doc.data().timestamp ? new Date(doc.data().timestamp) : new Date()),
+        }));
+        setTransactions(fetchedTransactions);
+        
+        // Update transaction overview in dashboard data
+        updateTransactionOverview(fetchedTransactions);
+        
+        console.log("DashboardPage: Fetched user transactions:", fetchedTransactions);
+      }, (error) => {
+        console.error("DashboardPage: Error fetching user transactions:", error);
+        setShowInfoModal(true);
+        setInfoModalTitle('Transaction History Error');
+        setInfoModalMessage(`Failed to load transaction history: ${error.message}.`);
+      });
+
+      return () => {
+        unsubscribeDashboard();
+        unsubscribeTransactions();
+      };
+    }
+  }, [db, userId, isAuthReady, appId, getPlanById, updateTransactionOverview]);
+
+  // Effect to apply dark mode class to body
+  useEffect(() => {
+    if (isDarkMode) {
+      document.body.classList.add('dark-mode');
+    } else {
+      document.body.classList.remove('dark-mode');
+    }
+  }, [isDarkMode]);
+
+  // Function to toggle dark mode
+  const toggleDarkMode = () => {
+    setIsDarkMode(prevMode => !prevMode);
+  };
+
+  // Updated callback to update Firestore data
+  const updateFirestoreData = useCallback(async (updates) => {
+    if (!db || !userId || !appId) {
+      console.error("Firestore, User ID, or App ID not available for update.");
+      setShowInfoModal(true);
+      setInfoModalTitle('Error');
+      setInfoModalMessage('System not ready for updates. Please try again.');
+      return;
+    }
+    const userDocRef = doc(db, 'artifacts', appId, 'users', userId, 'dashboardData', 'data');
+
+    const payload = {
+      updatedAt: Timestamp.now(),
+    };
+
+    // Add fields that are being updated
+    if (updates.hasOwnProperty('lastCalculatedDailyEarningAmount')) {
+      payload.lastCalculatedDailyEarningAmount = updates.lastCalculatedDailyEarningAmount;
+    }
+    if (updates.hasOwnProperty('lastDailyEarningTimestamp')) {
+      payload.lastDailyEarningTimestamp = updates.lastDailyEarningTimestamp;
+    }
+    if (updates.hasOwnProperty('currentInvestment')) {
+      payload.currentInvestment = updates.currentInvestment;
+    }
+    if (updates.hasOwnProperty('balance')) {
+      payload.balance = updates.balance;
+    }
+
+    try {
+      console.log("Attempting to send to Firestore (owner update):", payload);
+      await setDoc(userDocRef, payload, { merge: true });
+      console.log("Data updated in Firestore.");
+    } catch (error) {
+      console.error("Error updating Firestore:", error);
+      setShowInfoModal(true);
+      setInfoModalTitle('Error');
+      setInfoModalMessage(`Failed to update data: ${error.message}.`);
+    }
+  }, [db, userId, appId]);
+
+  // Helper function to process daily earnings (admin only)
+  const processDailyEarnings = useCallback(async () => {
+    if (!isAdmin || !db || !appId || !userId) {
+      console.log('Daily earnings processing requires admin privileges');
+      setShowInfoModal(true);
+      setInfoModalTitle('Access Denied');
+      setInfoModalMessage('Only administrators can process daily earnings.');
+      return;
+    }
+
+    setShowInfoModal(true);
+    setInfoModalTitle('Processing...');
+    setInfoModalMessage('Processing daily earnings for all users. This may take a moment...');
+
+    try {
+      const usersRef = collection(db, 'artifacts', appId, 'users');
+      const usersSnapshot = await getDocs(usersRef);
+      let processedCount = 0;
+
+      for (const userDoc of usersSnapshot.docs) {
+        const userDashboardRef = doc(db, 'artifacts', appId, 'users', userDoc.id, 'dashboardData', 'data');
+        const dashboardDoc = await getDoc(userDashboardRef);
+
+        if (dashboardDoc.exists()) {
+          const dashboardData = dashboardDoc.data();
+          const currentInvestment = dashboardData.currentInvestment;
+          const totalInvested = dashboardData.totalInvested || 0;
+
+          if (currentInvestment && totalInvested > 0) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            let lastCalcDate = dashboardData.lastDailyEarningTimestamp?.toDate();
+            if (lastCalcDate) {
+              lastCalcDate.setHours(0, 0, 0, 0);
+            }
+
+            if (!lastCalcDate || lastCalcDate.getTime() < today.getTime()) {
+              const plan = INVESTMENT_PLANS.find(p => p.id === currentInvestment.id);
+              if (plan) {
+                const earningsForToday = totalInvested * plan.dailyROI;
+                const newBalance = (dashboardData.balance || 0) + earningsForToday;
+
+                await updateDoc(userDashboardRef, {
+                  balance: newBalance,
+                  lastCalculatedDailyEarningAmount: earningsForToday,
+                  lastDailyEarningTimestamp: Timestamp.now(),
+                  updatedAt: Timestamp.now()
+                });
+
+                const userProfileRef = doc(db, 'artifacts', appId, 'users', userDoc.id, 'profile', 'data');
+                const profileDoc = await getDoc(userProfileRef);
+                if (profileDoc.exists()) {
+                  await updateDoc(userProfileRef, {
+                    balance: newBalance,
+                    updatedAt: Timestamp.now()
+                  });
+                }
+
+                const transactionsRef = collection(db, 'artifacts', appId, 'users', userDoc.id, 'transactions');
+                await setDoc(doc(transactionsRef), {
+                  type: 'earning',
+                  amount: earningsForToday,
+                  status: 'completed',
+                  timestamp: Timestamp.now(),
+                  userId: userDoc.id,
+                  description: `Daily earnings from ${plan.name}`,
+                  planId: plan.id,
+                  autoGenerated: true
+                });
+
+                processedCount++;
+                console.log(`Processed daily earnings for user ${userDoc.id}: ${earningsForToday}`);
+              }
+            }
+          }
+        }
+      }
+
+      setShowInfoModal(true);
+      setInfoModalTitle('Success');
+      setInfoModalMessage(`Successfully processed daily earnings for ${processedCount} users.`);
+    } catch (error) {
+      console.error('Error processing daily earnings:', error);
+      setShowInfoModal(true);
+      setInfoModalTitle('Error');
+      setInfoModalMessage(`Failed to process daily earnings: ${error.message}`);
+    }
+  }, [isAdmin, db, appId, userId]);
+
+  // Calculate daily earnings effect
+  const calculateDailyEarningsEffect = useCallback(async () => {
+    if (isLoading || !currentInvestment || totalInvested <= 0) {
+      return;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let lastCalcDate = lastDailyEarningTimestamp;
+    if (lastCalcDate) {
+      lastCalcDate.setHours(0, 0, 0, 0);
+    }
+
+    if (!lastCalcDate || lastCalcDate.getTime() < today.getTime()) {
+      const earningsForToday = totalInvested * currentInvestment.dailyROI;
+
+      console.log(`Daily earnings calculation: totalInvested=${totalInvested}, dailyROI=${currentInvestment.dailyROI}, earningsForToday=${earningsForToday}`);
+
+      await updateFirestoreData({
+        lastCalculatedDailyEarningAmount: earningsForToday,
+        lastDailyEarningTimestamp: Timestamp.now(),
+      });
+
+      if (earningsForToday > 0) {
+        try {
+          const transactionsCollectionRef = collection(db, 'artifacts', appId, 'users', userId, 'transactions');
+          const dailyEarningTransaction = {
+            type: 'earning',
+            amount: earningsForToday,
+            status: 'pending', // Start as pending for admin approval
+            timestamp: Timestamp.now(),
+            userId: userId,
+            description: `Daily earnings from ${currentInvestment.name}`,
+            planId: currentInvestment.id,
+            autoGenerated: true
+          };
+          
+          await setDoc(doc(transactionsCollectionRef), dailyEarningTransaction);
+          console.log('Daily earnings transaction created with pending status');
+        } catch (error) {
+          console.error('Error creating daily earnings transaction:', error);
+        }
+      }
+
+      setDisplayDailyEarnings(earningsForToday);
+    } else {
+      setDisplayDailyEarnings(lastCalculatedDailyEarningAmount);
+    }
+  }, [isLoading, currentInvestment, totalInvested, lastDailyEarningTimestamp, updateFirestoreData, lastCalculatedDailyEarningAmount, db, appId, userId]);
+
+  useEffect(() => {
+    calculateDailyEarningsEffect();
+
+    const dailyCheckInterval = setInterval(() => {
+      calculateDailyEarningsEffect();
+    }, 1000 * 60 * 60);
+
+    return () => clearInterval(dailyCheckInterval);
+  }, [calculateDailyEarningsEffect]);
+
+  // Effect for the "counting up" animation of daily earnings
+  useEffect(() => {
+    if (lastCalculatedDailyEarningAmount > 0 && displayDailyEarnings < lastCalculatedDailyEarningAmount) {
+      let startValue = 0;
+      const duration = 1500;
+      let startTime = null;
+
+      const animateCount = (timestamp) => {
+        if (!startTime) startTime = timestamp;
+        const progress = timestamp - startTime;
+        const percentage = Math.min(progress / duration, 1);
+        const currentCount = startValue + (percentage * (lastCalculatedDailyEarningAmount - startValue));
+
+        setDisplayDailyEarnings(parseFloat(currentCount.toFixed(2)));
+
+        if (percentage < 1) {
+          requestAnimationFrame(animateCount);
+        } else {
+          setDisplayDailyEarnings(lastCalculatedDailyEarningAmount);
+        }
+      };
+
+      if (displayDailyEarnings !== 0) {
+        setDisplayDailyEarnings(0);
+      }
+      requestAnimationFrame(animateCount);
+    } else if (lastCalculatedDailyEarningAmount === 0 && displayDailyEarnings !== 0) {
+      setDisplayDailyEarnings(0);
+    } else if (lastCalculatedDailyEarningAmount > 0 && displayDailyEarnings === 0 && !isLoading) {
+      setDisplayDailyEarnings(lastCalculatedDailyEarningAmount);
+    }
+  }, [lastCalculatedDailyEarningAmount, isLoading]);
+
+  const handleSelectPlan = useCallback(async (plan) => {
+    if (!db || !userId || !appId) {
+      setShowInfoModal(true);
+      setInfoModalTitle('Error');
+      setInfoModalMessage('System not ready. Please try again.');
+      return;
+    }
+
+    navigate('/deposit');
+  }, [db, userId, appId, navigate]); 
+
+  if (isLoading) {
+    return (
+      <div className="loading-screen">
+        <div className="spinner"></div>
+        <p>Loading your dashboard...</p>
+        {authError && (
+          <p style={{ color: "#ef4444", fontSize: "14px", marginTop: "10px" }}>
+            Authentication Error: {authError}
+          </p>
+        )}
+      </div>
     );
+  }
+
+  return (
+    <div className="dashboard">
+      <div className="dashboard-content">
+        {/* Theme Toggle Button */}
+        <button
+          onClick={toggleDarkMode}
+          className="theme-toggle-btn"
+        >
+          {isDarkMode ? (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="4" />
+              <path d="M12 2v2" />
+              <path d="M12 20v2" />
+              <path d="M4.22 4.22l1.42 1.42" />
+              <path d="M18.36 18.36l1.42 1.42" />
+              <path d="M2 12h2" />
+              <path d="M20 12h2" />
+              <path d="M4.22 19.78l1.42-1.42" />
+              <path d="M18.36 5.64l1.42-1.42" />
+            </svg>
+          )}
+        </button>
+
+        {/* Animated Background */}
+        <div className="bg-animation">
+          <div className="floating-shape shape-1"></div>
+          <div className="floating-shape shape-2"></div>
+          <div className="floating-shape shape-3"></div>
+        </div>
+
+        {/* Main content area */}
+        <>
+          {/* Header */}
+          <header className="dashboard-header">
+            <div className="header-content">
+              <div className="welcome-text">
+                <h1 className="welcome-title">
+                  Welcome, <span className="username">{firstName}</span>
+                </h1>
+                <p className="welcome-subtitle">Your financial journey continues here</p>
+              </div>
+              <div className="header-actions">
+                {isAdmin && (
+                  <>
+                    <button
+                      onClick={() => navigate('/admin')}
+                      className="action-btn admin-dashboard-btn"
+                    >
+                      Admin Dashboard
+                    </button>
+                    <button
+                      onClick={processDailyEarnings}
+                      className="action-btn process-earnings-btn"
+                      style={{ marginLeft: '10px', backgroundColor: '#10b981' }}
+                      disabled={isUpdatingStatus}
+                    >
+                      {isUpdatingStatus ? 'Processing...' : 'Process Daily Earnings'}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </header>
+
+          {/* Stats Grid */}
+          <section className="stats-section">
+            <div className="stats-grid">
+              <div className="stat-card balance-card">
+                <div className="stat-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 1v6m0 0l4-4m-4 4L8 3m4 8v6m0 0l4-4m-4 4l-4-4M1 12h22"/>
+                  </svg>
+                </div>
+                <div className="stat-content">
+                  <h3 className="stat-label">Current Balance</h3>
+                  <div className="stat-value">
+                    <span id="account-balance">
+                      {isBalanceHidden ? '****' : formatCurrency(balance)}
+                    </span>
+                    <button 
+                      id="toggle-balance-btn" 
+                      className="toggle-balance-btn" 
+                      aria-label={isBalanceHidden ? "Show balance" : "Hide balance"}
+                      onClick={() => setIsBalanceHidden(!isBalanceHidden)}
+                    >
+                      {isBalanceHidden ? (
+                        <i className="fas fa-eye"></i>
+                      ) : (
+                        <i className="fas fa-eye-slash"></i>
+                      )}
+                    </button>
+                  </div>
+                  <span className="stat-change positive">
+                    {lastDailyEarningTimestamp && `Last updated: ${lastDailyEarningTimestamp.toLocaleDateString()}`}
+                  </span>
+                </div>
+              </div>
+
+              <div className="stat-card invested-card">
+                <div className="stat-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                    <circle cx="12" cy="10" r="3" />
+                  </svg>
+                </div>
+                <div className="stat-content">
+                  <h3 className="stat-label">Total Invested</h3>
+                  <p className="stat-value">{formatCurrency(totalInvested)}</p>
+                  <span className="stat-change positive">Active investments earning daily</span>
+                </div>
+              </div>
+
+              <div className="stat-card earnings-card">
+                <div className="stat-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 20V10" />
+                    <path d="M18 20V4" />
+                    <path d="M6 20v-4" />
+                  </svg>
+                </div>
+                <div className="stat-content">
+                  <h3 className="stat-label">Daily Earnings</h3>
+                  <p className="stat-value">{formatCurrency(displayDailyEarnings)}</p>
+                  <span className="stat-change positive">
+                    {currentInvestment ? `${(currentInvestment.dailyROI * 100).toFixed(1)}% of invested amount` : 'Select a plan to start earning'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="stat-card active-plan-card">
+                <div className="stat-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  </svg>
+                </div>
+                <div className="stat-content">
+                  <h3 className="stat-label">Active Plan</h3>
+                  <p className="stat-value">
+                    {currentInvestment ? currentInvestment.name : 'None'}
+                  </p>
+                  <span className="stat-change info">
+                    {currentInvestment ? `ROI: ${(currentInvestment.dailyROI * 100).toFixed(1)}% Daily` : 'Select a plan to start'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Investment Plans Section */}
+          <InvestmentPlansSection
+            currentInvestment={currentInvestment}
+            onSelectPlan={handleSelectPlan}
+          />
+
+          {/* Transaction History Section */}
+          <section className="transactions-history-section">
+            <div className="section-header">
+              <h2 className="section-title">Transaction History</h2>
+              <p className="section-subtitle">
+                A detailed record of all your financial activities. 
+                {isAdmin && ' As an admin, you can manage transaction statuses.'}
+              </p>
+            </div>
+            
+            <TransactionStatusFilter
+              activeFilter={statusFilter}
+              onFilterChange={setStatusFilter}
+              transactions={transactions}
+            />
+            
+            {/* Summary stats for admins */}
+            {isAdmin && transactionOverview && (
+              <div className="admin-transaction-summary mb-6 p-4 bg-blue-50 dark:bg-blue-900 rounded-lg">
+                <h3 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
+                  Admin Overview - Total Transactions: {transactionOverview.totalTransactions}
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <span className="text-blue-600 dark:text-blue-300">Pending: </span>
+                    <span className="font-semibold">{transactionOverview.counts.pending}</span>
+                    <span className="text-xs text-gray-500 ml-1">({formatCurrency(transactionOverview.amounts.pending)})</span>
+                  </div>
+                  <div>
+                    <span className="text-blue-600 dark:text-blue-300">Processing: </span>
+                    <span className="font-semibold">{transactionOverview.counts.processing}</span>
+                    <span className="text-xs text-gray-500 ml-1">({formatCurrency(transactionOverview.amounts.processing)})</span>
+                  </div>
+                  <div>
+                    <span className="text-blue-600 dark:text-blue-300">Approved: </span>
+                    <span className="font-semibold">{transactionOverview.counts.approved}</span>
+                    <span className="text-xs text-gray-500 ml-1">({formatCurrency(transactionOverview.amounts.approved)})</span>
+                  </div>
+                  <div>
+                    <span className="text-blue-600 dark:text-blue-300">Completed: </span>
+                    <span className="font-semibold">{transactionOverview.counts.completed}</span>
+                    <span className="text-xs text-gray-500 ml-1">({formatCurrency(transactionOverview.amounts.completed)})</span>
+                  </div>
+                </div>
+                {transactionOverview.lastUpdated && (
+                  <div className="text-xs text-gray-500 mt-2">
+                    Last updated: {transactionOverview.lastUpdated.toDate().toLocaleString()}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="table-responsive">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    {isAdmin && <th>Admin Actions</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredTransactions.length > 0 ? (
+                    filteredTransactions.map((transaction) => (
+                      <tr key={transaction.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                        <td>{transaction.timestamp ? transaction.timestamp.toLocaleDateString() : 'N/A'}</td>
+                        <td>
+                          <span className="inline-flex items-center gap-1">
+                            {transaction.autoGenerated && (
+                              <span className="text-xs bg-blue-100 text-blue-800 px-1 rounded" title="Auto-generated">
+                                Auto
+                              </span>
+                            )}
+                            {capitalize(transaction.type)}
+                          </span>
+                        </td>
+                        <td className="font-semibold">{formatCurrency(transaction.amount)}</td>
+                        <td>
+                          <TransactionStatusBadge
+                            status={transaction.status || 'pending'}
+                            showIcon={true}
+                            onClick={() => handleTransactionStatusClick(transaction)}
+                          />
+                        </td>
+                        {isAdmin && (
+                          <td>
+                            <AdminTransactionControl
+                              transaction={transaction}
+                              onStatusUpdate={updateTransactionStatus}
+                              isLoading={isUpdatingStatus}
+                            />
+                          </td>
+                        )}
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={isAdmin ? "5" : "4"} className="text-center py-8 text-gray-500 dark:text-gray-400">
+                        <div className="flex flex-col items-center gap-2">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="text-gray-300">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14,2 14,8 20,8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/>
+                            <line x1="16" y1="17" x2="8" y2="17"/>
+                            <polyline points="10,9 9,9 8,9"/>
+                          </svg>
+                          <p>No transactions found for "{statusFilter}" status.</p>
+                          {statusFilter !== 'all' && (
+                            <button 
+                              onClick={() => setStatusFilter('all')} 
+                              className="text-blue-600 hover:text-blue-800 text-sm"
+                            >
+                              View all transactions
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </>
+      </div>
+
+      {/* Info Modal */}
+      <Modal
+        show={showInfoModal}
+        title={infoModalTitle}
+        onClose={() => setShowInfoModal(false)}
+      >
+        <p>{infoModalMessage}</p>
+      </Modal>
+
+      {/* Transaction Status Details Modal */}
+      <TransactionStatusModal
+        show={showStatusModal}
+        transaction={selectedTransaction}
+        onClose={() => setShowStatusModal(false)}
+      />
+    </div>
+  );
 };
 
 export default DashboardPage;
