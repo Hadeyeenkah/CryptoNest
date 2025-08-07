@@ -280,16 +280,12 @@ const DashboardPage = () => {
 
     const isSystemLoading = authLoading || !isAuthReady || !db || !userId || loading;
 
-    // --- UPDATED: Initial state is now always light mode (false) on first load. ---
-    const [isDarkMode, setIsDarkMode] = useState(false);
-
-    useEffect(() => {
-        // This effect will run once on mount to check for a stored theme.
+    // --- UPDATED: Initial state for dark mode is now explicitly false (light mode) ---
+    const [isDarkMode, setIsDarkMode] = useState(() => {
         const storedMode = localStorage.getItem('theme');
-        if (storedMode === 'dark') {
-            setIsDarkMode(true);
-        }
-    }, []);
+        // If a theme is stored, use it. Otherwise, default to light mode (false).
+        return storedMode === 'dark';
+    });
 
     const handleThemeToggle = useCallback(() => {
         setIsDarkMode(prevMode => {
@@ -306,7 +302,7 @@ const DashboardPage = () => {
     }, []);
 
     useEffect(() => {
-        // This effect applies the theme whenever isDarkMode state changes.
+        // Apply the initial theme on component mount
         if (isDarkMode) {
             document.body.classList.add('dark');
         } else {
@@ -577,7 +573,7 @@ const DashboardPage = () => {
                             <h1 className="welcome-title">Welcome, <span className="username">{firstName}</span></h1>
                             <p className="welcome-subtitle">Your financial journey continues here</p>
                         </div>
-                        {/* --- The theme toggle button is now inside the header's flexbox container --- */}
+                        {/* --- UPDATED: The theme toggle button is now inside the header-actions div --- */}
                         <div className="header-actions">
                             {isAdmin && (
                                 <button onClick={() => navigate('/admin')} className="action-btn admin-dashboard-btn">
