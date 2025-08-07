@@ -1,5 +1,12 @@
-/* Define CSS variables for colors and shadows */
+/*
+  Dashboard.css: A comprehensive style sheet for the DashboardPage component.
+  This file includes styles for a modern, responsive dashboard with a built-in
+  dark mode. It utilizes CSS custom properties (variables) for easy theme switching.
+*/
+
+/* --- Define CSS variables for colors and shadows --- */
 :root {
+  /* Light Mode Colors */
   --background: #f8fafc;
   --card-bg: #ffffff;
   --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(0, 0, 0, 0.05);
@@ -28,30 +35,62 @@
   --warning-border: #ffcc80;
 
   --highlight-blue: #2196f3;
+  --button-hover: #f5f5f5;
+  --button-text: #333;
 }
 
-/* Base styles and container */
+/* --- Dark Mode Colors --- */
+body.dark {
+  --background: #121212;
+  --card-bg: #1e1e1e;
+  --card-shadow: 0 10px 30px rgba(255, 255, 255, 0.02), 0 4px 12px rgba(255, 255, 255, 0.01);
+  --border-color: #333333;
+
+  --text-primary: #e0e0e0;
+  --text-secondary: #a0a0a0;
+  --text-tertiary: #616161;
+
+  --primary: #9575cd;
+  --primary-light: #673ab7;
+  --primary-dark: #7e57c2;
+
+  --success: #66bb6a;
+  --success-light: #1f2937;
+  --success-dark: #81c784;
+
+  --danger: #ef5350;
+  --danger-light: #1f2937;
+  --danger-dark: #e57373;
+
+  --warning-light: #1f2937;
+  --warning-dark: #ffb74d;
+  --warning-border: #ff8a65;
+
+  --highlight-blue: #64b5f6;
+  --button-hover: #2d3748;
+  --button-text: #e0e0e0;
+}
+
+/* --- Base styles and container --- */
+body {
+  margin: 0;
+  background-color: var(--background);
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  line-height: 1.6;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
 .deposit-page {
   min-height: 100vh;
-  background-color: var(--background);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 2rem 1rem;
-  font-family: 'Inter', sans-serif;
-  color: var(--text-primary);
-  line-height: 1.6;
-}
-
-.deposit-page.loading-screen {
-  background-color: var(--background);
-  color: var(--text-secondary);
-  font-size: 1.125rem;
-  font-weight: 500;
 }
 
 .deposit-container {
-  max-width: 600px; /* Increased width for better content flow */
+  max-width: 600px;
   width: 100%;
   background-color: var(--card-bg);
   border-radius: 12px;
@@ -59,6 +98,7 @@
   padding: 2.5rem;
   border: 1px solid var(--border-color);
   animation: fadeIn 0.5s ease-out;
+  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .deposit-container h2 {
@@ -92,7 +132,7 @@
   margin-right: auto;
 }
 
-/* Message styles */
+/* --- Message styles --- */
 .error-message, .success-message {
   padding: 1rem 1.25rem;
   border-radius: 8px;
@@ -103,6 +143,7 @@
   align-items: center;
   gap: 0.75rem;
   box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .error-message {
@@ -117,7 +158,7 @@
   border: 1px solid var(--success);
 }
 
-/* Form layout */
+/* --- Form layout --- */
 .deposit-form {
   display: flex;
   flex-direction: column;
@@ -141,7 +182,7 @@
   color: var(--text-primary);
   padding: 0 1.25rem;
   font-size: 1rem;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease, color 0.3s ease;
   appearance: none;
   box-sizing: border-box;
 }
@@ -155,10 +196,13 @@
 .form-select:disabled, .form-input:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-  background-color: #f5f5f5;
+  background-color: #f5f5f5; /* Light mode specific */
 }
 
-/* Custom arrow for select */
+body.dark .form-select:disabled, body.dark .form-input:disabled {
+  background-color: #2d3748; /* Dark mode specific */
+}
+
 .form-group {
   position: relative;
 }
@@ -196,7 +240,7 @@
   padding-left: 2.5rem;
 }
 
-/* Payment Method Selection */
+/* --- Payment Method Selection --- */
 .payment-method-selection {
   display: flex;
   gap: 1rem;
@@ -212,20 +256,20 @@
   padding: 1rem;
   border: 2px solid var(--border-color);
   border-radius: 8px;
-  background-color: #f8fafc;
+  background-color: var(--background);
   transition: all 0.3s ease;
   flex: 1;
   min-width: 200px;
 }
 
 .payment-method-option:hover {
-  background-color: #edf2f7;
+  background-color: var(--button-hover);
   border-color: var(--primary-light);
 }
 
 .payment-method-option.selected {
   border-color: var(--primary);
-  background-color: #f5f3ff;
+  background-color: rgba(103, 58, 183, 0.1);
   box-shadow: 0 0 0 1px var(--primary);
 }
 
@@ -251,13 +295,14 @@
   font-size: 0.8rem;
 }
 
-/* Wallet Section */
+/* --- Wallet Section --- */
 .wallet-section, .cashapp-funding-section {
-  background-color: #f0f4f8;
+  background-color: var(--card-bg);
   border-radius: 12px;
   padding: 2rem;
   margin-top: 1.5rem;
-  border: 1px dashed rgba(103, 58, 183, 0.2);
+  border: 1px dashed var(--border-color);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .wallet-section h3, .cashapp-funding-section h3 {
@@ -276,13 +321,14 @@
 }
 
 .qr-container {
-  background: var(--card-bg);
+  background: var(--background);
   padding: 1rem;
   border-radius: 10px;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
   flex-shrink: 0;
   max-width: 220px;
   border: 1px solid var(--border-color);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .qr-container img {
@@ -304,10 +350,11 @@
   align-items: center;
   gap: 0.75rem;
   margin-bottom: 1rem;
-  background-color: #f5f5f5;
+  background-color: var(--background);
   padding: 1rem 1.25rem;
   border-radius: 8px;
-  border: 1px solid #dcdcdc;
+  border: 1px solid var(--border-color);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .wallet-address strong, .cashtag-display strong {
@@ -362,13 +409,14 @@
   line-height: 1.5;
   padding: 1rem;
   border-left: 4px solid var(--warning-border);
-  background-color: rgba(255, 160, 0, 0.05);
+  background-color: var(--warning-light);
   border-radius: 4px;
   margin-top: 1rem;
   text-align: left;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Cash App Funding Instructions */
+/* --- Cash App Funding Instructions --- */
 .funding-instructions {
   text-align: left;
   margin-top: 1rem;
@@ -378,9 +426,10 @@
 .instruction-section {
   margin-bottom: 2rem;
   padding: 1.5rem;
-  background-color: rgba(255, 255, 255, 0.7);
+  background-color: var(--background);
   border-radius: 8px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .instruction-section h4 {
@@ -424,15 +473,16 @@
 }
 
 .bitcoin-address-display {
-  background-color: #f7fafc;
+  background-color: var(--background);
   padding: 0.5rem;
   border-radius: 4px;
   font-family: 'Roboto Mono', monospace;
   font-size: 0.8rem;
   color: var(--highlight-blue);
   word-break: break-all;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   margin: 0.5rem 0;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .important-notes, .processing-timeline {
@@ -440,17 +490,18 @@
   padding: 1.25rem;
   border-radius: 8px;
   border: 1px solid;
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
 }
 
 .important-notes {
-  background-color: #fff5f5;
-  border-color: #fed7d7;
+  background-color: var(--danger-light);
+  border-color: var(--danger);
   color: var(--danger-dark);
 }
 
 .processing-timeline {
-  background-color: #f0fff4;
-  border-color: #9ae6b4;
+  background-color: var(--success-light);
+  border-color: var(--success);
   color: var(--success-dark);
 }
 
@@ -489,13 +540,14 @@
   font-size: 0.9rem;
   line-height: 1.5;
   box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
 }
 
 .approval-note strong {
   font-weight: 600;
 }
 
-/* Buttons */
+/* --- Buttons --- */
 .deposit-btn, .back-to-dashboard-btn {
   width: 100%;
   display: flex;
@@ -564,7 +616,7 @@
 }
 
 .back-to-dashboard-btn:hover {
-  background-color: rgba(103, 58, 183, 0.05);
+  background-color: var(--button-hover);
   border-color: var(--primary);
 }
 
@@ -573,7 +625,7 @@
   box-shadow: 0 0 0 3px rgba(103, 58, 183, 0.2);
 }
 
-/* Keyframe Animations */
+/* --- Keyframe Animations --- */
 @keyframes spinner {
   to {
     transform: translateY(-50%) rotate(360deg);
@@ -581,17 +633,17 @@
 }
 
 @keyframes fadeIn {
-  from { 
-    opacity: 0; 
-    transform: translateY(20px); 
+  from {
+    opacity: 0;
+    transform: translateY(20px);
   }
-  to { 
-    opacity: 1; 
-    transform: translateY(0); 
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-/* Responsive adjustments */
+/* --- Responsive adjustments --- */
 @media (max-width: 768px) {
   .deposit-container {
     padding: 2rem 1.5rem;
