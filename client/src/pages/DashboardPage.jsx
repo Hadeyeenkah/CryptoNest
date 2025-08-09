@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { doc, getDoc, setDoc, onSnapshot, collection, query, orderBy, Timestamp, updateDoc, getDocs } from "firebase/firestore";
@@ -64,8 +63,9 @@ const INVESTMENT_PLANS = [
     maxInvestment: 1000,
     description: 'A solid start for your investment journey.',
     icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+      // Bitcoin/Crypto Icon
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.161c.137-.353.21-.748.21-1.155 0-.31-.037-.612-.11-.898C17.24 4.85 15.927 4 14.406 4H9.594C8.073 4 6.76 4.85 6.338 6.108c-.073.286-.11.588-.11.898 0 .407.073.802.21 1.155.424 1.09 1.424 1.839 2.624 1.839h.844v2h-.844c-1.2 0-2.2.749-2.624 1.839-.137.353-.21.748-.21 1.155 0 .31.037.612.11.898.422 1.258 1.735 2.108 3.256 2.108h4.812c1.521 0 2.834-.85 3.256-2.108.073-.286.11-.588.11-.898 0-.407-.073-.802-.21-1.155C16.762 12.749 15.762 12 14.562 12h-.844v-2h.844c1.2 0 2.2-.749 2.624-1.839zM10.688 6.5h2.624c.621 0 1.125.504 1.125 1.125S13.933 8.75 13.312 8.75h-2.624c-.621 0-1.125-.504-1.125-1.125S10.067 6.5 10.688 6.5zm2.624 11h-2.624c-.621 0-1.125-.504-1.125-1.125s.504-1.125 1.125-1.125h2.624c.621 0 1.125.504 1.125 1.125s-.504 1.125-1.125 1.125z"/>
       </svg>
     ),
     gradient: 'from-blue-500 to-purple-600'
@@ -78,8 +78,13 @@ const INVESTMENT_PLANS = [
     maxInvestment: 5000,
     description: 'Accelerate your returns with higher potential.',
     icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 8c1.657 0 3 .895 3 2s-1.343 2-3 2-3-.895-3-2 1.343-2 3-2zM12 8V3m0 5v8m0 0v3.010M12 16h3.010M12 16H8.990m0 0l-1.5-1.5M12 16l1.5-1.5M12 16l-1.5 1.5M12 16l1.5 1.5" />
+      // Gold Bar Icon
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M21 8H3c-.552 0-1 .448-1 1v8c0 .552.448 1 1 1h18c.552 0 1-.448 1-1V9c0-.552-.448-1-1-1z"/>
+        <path d="M4 6h16c.552 0 1 .448 1 1v1H3V7c0-.552.448-1 1-1z"/>
+        <path d="M5 18h14c.552 0 1-.448 1-1v-1H4v1c0 .552.448 1 1 1z"/>
+        <rect x="6" y="10" width="12" height="4" rx="0.5" fill="rgba(255,255,255,0.3)"/>
+        <text x="12" y="13" textAnchor="middle" fontSize="4" fill="rgba(255,255,255,0.8)" fontWeight="bold">GOLD</text>
       </svg>
     ),
     gradient: 'from-yellow-400 to-orange-500'
@@ -92,8 +97,13 @@ const INVESTMENT_PLANS = [
     maxInvestment: 100000,
     description: 'Maximize your earnings with our exclusive plan.',
     icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.163 2.163V8a2 2 0 001.07 1.602l3.252 1.832a2 2 0 000 3.536l-3.252 1.832A2 2 0 0013 16v1.837L10.837 21M3 12h.01M17 12h.01M12 3h.01M12 21h.01" />
+      // Diamond Icon
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M6 2l3 4h6l3-4h2l-4 6v14H4V8L0 2h6z"/>
+        <path d="M4 8l8 14L20 8H4z" fill="rgba(255,255,255,0.3)"/>
+        <path d="M4 8h5l3-6h2l3 6h5L12 22 4 8z" stroke="rgba(255,255,255,0.5)" strokeWidth="0.5" fill="none"/>
+        <path d="M6 2h12l-2 4H8L6 2z" fill="rgba(255,255,255,0.4)"/>
+        <path d="M12 2v4M8 6l4 16M16 6l-4 16" stroke="rgba(255,255,255,0.3)" strokeWidth="0.5"/>
       </svg>
     ),
     gradient: 'from-purple-500 to-pink-600'
@@ -533,7 +543,7 @@ const DashboardPage = () => {
   // Transaction status states for the modal
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [showStatusModal, setShowStatusModal] = useState(false);
-  const [statusFilter, setStatusFilter] = useState('pending'); // Default to pending
+  const [statusFilter, setStatusFilter] = useState('all'); // Changed from 'pending' to 'all'
 
   // Combined loading state for the dashboard
   const isLoading = authLoading || !isAuthReady || !db || !userId;
@@ -608,6 +618,7 @@ const DashboardPage = () => {
       console.error('Error updating transaction overview:', error);
     }
   }, [db, userId, appId]);
+
   const updateTransactionStatus = useCallback(async (transactionId, newStatus, transactionUserId = null) => {
     if (!db || !appId || !isAdmin) {
       console.error('Unauthorized or missing required data for transaction update');
@@ -806,7 +817,7 @@ const DashboardPage = () => {
     setIsDarkMode(prevMode => !prevMode);
   };
 
-  // Updated callback to update Firestore data
+  // UPDATED callback to update Firestore data with balance support
   const updateFirestoreData = useCallback(async (updates) => {
     if (!db || !userId || !appId) {
       console.error("Firestore, User ID, or App ID not available for update.");
@@ -838,6 +849,20 @@ const DashboardPage = () => {
     try {
       console.log("Attempting to send to Firestore (owner update):", payload);
       await setDoc(userDocRef, payload, { merge: true });
+      
+      // Also update user profile balance if balance is being updated
+      if (updates.hasOwnProperty('balance')) {
+        const userProfileRef = doc(db, 'artifacts', appId, 'users', userId, 'profile', 'data');
+        const profileDoc = await getDoc(userProfileRef);
+        
+        if (profileDoc.exists()) {
+          await updateDoc(userProfileRef, {
+            balance: updates.balance,
+            updatedAt: Timestamp.now()
+          });
+        }
+      }
+      
       console.log("Data updated in Firestore.");
     } catch (error) {
       console.error("Error updating Firestore:", error);
@@ -937,7 +962,7 @@ const DashboardPage = () => {
     }
   }, [isAdmin, db, appId, userId]);
 
-  // Calculate daily earnings effect
+  // UPDATED Calculate daily earnings effect - Auto-adds to balance with completed status
   const calculateDailyEarningsEffect = useCallback(async () => {
     if (isLoading || !currentInvestment || totalInvested <= 0) {
       return;
@@ -956,9 +981,14 @@ const DashboardPage = () => {
 
       console.log(`Daily earnings calculation: totalInvested=${totalInvested}, dailyROI=${currentInvestment.dailyROI}, earningsForToday=${earningsForToday}`);
 
+      // Calculate new balance with earnings added
+      const newBalance = balance + earningsForToday;
+
+      // Update Firestore with new balance and earnings data
       await updateFirestoreData({
         lastCalculatedDailyEarningAmount: earningsForToday,
         lastDailyEarningTimestamp: Timestamp.now(),
+        balance: newBalance, // Add earnings to current balance
       });
 
       if (earningsForToday > 0) {
@@ -967,7 +997,7 @@ const DashboardPage = () => {
           const dailyEarningTransaction = {
             type: 'earning',
             amount: earningsForToday,
-            status: 'pending', // Start as pending for admin approval
+            status: 'completed', // Changed from 'pending' to 'completed'
             timestamp: Timestamp.now(),
             userId: userId,
             description: `Daily earnings from ${currentInvestment.name}`,
@@ -976,7 +1006,7 @@ const DashboardPage = () => {
           };
           
           await setDoc(doc(transactionsCollectionRef), dailyEarningTransaction);
-          console.log('Daily earnings transaction created with pending status');
+          console.log('Daily earnings transaction created with completed status and balance updated');
         } catch (error) {
           console.error('Error creating daily earnings transaction:', error);
         }
@@ -986,7 +1016,7 @@ const DashboardPage = () => {
     } else {
       setDisplayDailyEarnings(lastCalculatedDailyEarningAmount);
     }
-  }, [isLoading, currentInvestment, totalInvested, lastDailyEarningTimestamp, updateFirestoreData, lastCalculatedDailyEarningAmount, db, appId, userId]);
+  }, [isLoading, currentInvestment, totalInvested, lastDailyEarningTimestamp, updateFirestoreData, lastCalculatedDailyEarningAmount, db, appId, userId, balance]); // Added 'balance' to dependencies
 
   useEffect(() => {
     calculateDailyEarningsEffect();
