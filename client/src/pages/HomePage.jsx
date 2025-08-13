@@ -104,7 +104,6 @@ const HomePage = () => {
                 Start Investing
               </Link>
             </div>
-            // Add this to your HomePage component
 <div className="language-selector">
   <div className="usa-flag"></div>
   <span className="language-text">EN</span>
