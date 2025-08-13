@@ -5,13 +5,13 @@ import {
 } from 'firebase/app';
 import {
   getAuth, createUserWithEmailAndPassword, updateProfile,
-  sendEmailVerification, onAuthStateChanged
+  onAuthStateChanged
 } from 'firebase/auth';
 import {
   getFirestore, setDoc, doc, Timestamp
 } from 'firebase/firestore';
-import emailjs from '@emailjs/browser'; // Add this import
-import './signup.css'; // Assuming this CSS file exists for styling
+import emailjs from '@emailjs/browser';
+import './signup.css';
 
 // Custom Modal Component for confirmations and messages
 const CustomModal = ({ message, onConfirm, onCancel, showConfirmButton = true }) => {
@@ -58,23 +58,24 @@ function SignupPage() {
 
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
-  const [showVerificationMessage, setShowVerificationMessage] = useState(false);
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [welcomeMessage, setWelcomeMessage] = useState('');
   const [showLoginPromptModal, setShowLoginPromptModal] = useState(false);
   const [modalMessage, setModalMessage] = useState('');
-  const [emailSendingStatus, setEmailSendingStatus] = useState(''); // New state for email status
+  const [emailSendingStatus, setEmailSendingStatus] = useState('');
 
   const dbRef = useRef(null);
   const authRef = useRef(null);
 
-  // EmailJS Configuration - Replace with your actual EmailJS credentials
+  // Updated EmailJS Configuration with your new credentials
+  // TODO: Replace these with the EXACT IDs from your EmailJS dashboard
   const EMAILJS_CONFIG = {
-    serviceId: 'service_abc123', // Example: service_abc123 (get from EmailJS dashboard)
-    templateId: 'template_xyz789', // Example: template_xyz789 (get from EmailJS dashboard)
-    publicKey: 'user_def456ghi789' // Example: user_def456ghi789 (get from EmailJS dashboard)
+    serviceId: 'service_0ihxha4', // ⚠️ VERIFY THIS ID in your EmailJS dashboard
+    templateId: 'template_839zjp6', // ⚠️ VERIFY THIS ID in your EmailJS dashboard
+    publicKey: '7M64gZ4JQ08yJiuB6' // ⚠️ VERIFY THIS KEY in your EmailJS dashboard
   };
 
-  // Firebase Initialization
+  // Firebase Initialization and EmailJS Init
   useEffect(() => {
     console.log("SignupPage: Initializing Firebase...");
     const currentAppId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -82,8 +83,24 @@ function SignupPage() {
 
     setAppId(currentAppId);
 
-    // Initialize EmailJS
-    emailjs.init(EMAILJS_CONFIG.publicKey);
+    // Initialize EmailJS with the public key
+    if (EMAILJS_CONFIG.publicKey) {
+      try {
+        emailjs.init(EMAILJS_CONFIG.publicKey);
+        console.log("✅ EmailJS initialized successfully with new credentials");
+        console.log("EmailJS Config:", {
+          serviceId: EMAILJS_CONFIG.serviceId,
+          templateId: EMAILJS_CONFIG.templateId,
+          publicKeyPresent: !!EMAILJS_CONFIG.publicKey
+        });
+      } catch (emailjsError) {
+        console.error("❌ EmailJS initialization failed:", emailjsError);
+        setError("Failed to initialize email service. Please try again later.");
+      }
+    } else {
+      console.error("❌ EmailJS public key is not configured.");
+      setError("Email service is not configured. Please contact support.");
+    }
 
     let appInstance;
     if (getApps().length === 0) {
@@ -180,18 +197,29 @@ function SignupPage() {
 
   const generateWelcomeMessage = async (firstName, username) => {
     try {
-      const prompt = `Generate a warm and friendly welcome message for a new user who just signed up for our platform. Their first name is ${firstName} and their username is ${username}. Also, remind them to check their email for verification. Keep it concise, around 2-3 sentences.`;
+      const prompt = `Generate a warm and friendly welcome message for a new user who just signed up for our cryptocurrency investment platform. Their first name is ${firstName} and their username is ${username}. Keep it concise, around 2-3 sentences, and mention Cryptowealth.`;
       let chatHistory = [];
       chatHistory.push({ role: "user", parts: [{ text: prompt }] });
       const payload = { contents: chatHistory };
-      const apiKey = ""; // Leave this as-is; Canvas will provide it at runtime
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+      const apiKey = ""; // Add your Gemini API key here if you want AI-generated messages
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+      // Check for an empty API key to prevent the 403 error from being logged
+      if (!apiKey || apiKey.trim() === '') {
+        console.warn("Gemini API key is not configured. Using a default welcome message.");
+        return `Welcome to Cryptowealth, ${firstName}! Your account with username ${username} has been successfully created. We're excited to have you join our investment community!`;
+      }
 
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API call failed with status ${response.status}: ${errorText}`);
+      }
 
       const result = await response.json();
       if (result.candidates && result.candidates.length > 0 &&
@@ -200,74 +228,148 @@ function SignupPage() {
         return result.candidates[0].content.parts[0].text;
       } else {
         console.error("Gemini API: Unexpected response structure or no content.");
-        return `Welcome to our platform, ${firstName}! Your username ${username} is now active. Please check your email for verification.`;
+        return `Welcome to Cryptowealth, ${firstName}! Your account with username ${username} has been successfully created. We're excited to have you join our investment community!`;
       }
     } catch (apiError) {
       console.error("Error calling Gemini API:", apiError);
-      return `Welcome to our platform, ${firstName}! Your username ${username} is now active. Please check your email for verification.`;
+      return `Welcome to Cryptowealth, ${firstName}! Your account with username ${username} has been successfully created. We're excited to have you join our investment community!`;
     }
   };
 
-  // New function to send welcome email using EmailJS
-  const sendWelcomeEmail = async (userEmail, firstName, username, welcomeMessage) => {
+  // Enhanced function to send the welcome email using EmailJS with improved delivery
+  const sendWelcomeEmail = async (userEmail, firstName, lastName, username) => {
     try {
-      setEmailSendingStatus('Sending welcome email...');
-      
+      setEmailSendingStatus('Preparing to send welcome email...');
+
+      console.log('=== EMAIL SENDING DEBUG INFO (NEW CONFIG) ===');
+      console.log('1. User Email:', userEmail);
+      console.log('2. First Name:', firstName);
+      console.log('3. Username:', username);
+      console.log('4. EmailJS Config:', {
+        serviceId: EMAILJS_CONFIG.serviceId,
+        templateId: EMAILJS_CONFIG.templateId,
+        publicKeyPresent: !!EMAILJS_CONFIG.publicKey
+      });
+
+      // Validate email address
+      if (!userEmail || userEmail.trim() === '') {
+        throw new Error('❌ Recipient email address is empty or invalid.');
+      }
+
+      const cleanEmail = userEmail.trim().toLowerCase();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(cleanEmail)) {
+        throw new Error('❌ Invalid email format.');
+      }
+
+      // Validate EmailJS configuration
+      if (!EMAILJS_CONFIG.serviceId || !EMAILJS_CONFIG.templateId || !EMAILJS_CONFIG.publicKey) {
+        throw new Error('❌ EmailJS configuration is incomplete. Please check your credentials.');
+      }
+
+      setEmailSendingStatus('Building email template with new configuration...');
+
+      // Template parameters matching your EmailJS template variables
+      // IMPORTANT: Make sure your EmailJS template has the 'To Email' field set to {{to_email}}
       const templateParams = {
-        to_email: userEmail,
-        to_name: firstName,
-        username: username,
-        welcome_message: welcomeMessage,
-        platform_name: 'Your Platform Name', // Replace with your platform name
-        support_email: 'support@yourplatform.com', // Replace with your support email
-        login_url: window.location.origin + '/login',
-        verification_reminder: 'Please check your email for a verification link to complete your account setup.'
+        to_email: cleanEmail, // This is the recipient email - CRITICAL!
+        to_name: firstName.trim(), // Used in template as {{to_name}}
+        user_name: username.trim(), // Used in template as {{user_name}}
+        reply_to: 'cryptowealthinvestment07@gmail.com',
+        from_name: 'Cryptowealth Investment Team',
+        // Additional parameters for better delivery and template compatibility
+        recipient_email: cleanEmail, // Backup parameter name
+        user_first_name: firstName.trim(),
+        user_last_name: lastName.trim(),
+        full_name: `${firstName.trim()} ${lastName.trim()}`,
+        platform_name: 'Cryptowealth Investment',
+        login_url: 'https://cryptowealthinvestment.onrender.com/',
+        support_email: 'cryptowealthinvestment07@gmail.com',
+        // Anti-spam parameters for better inbox delivery
+        message_subject: `Welcome to Cryptowealth, ${firstName.trim()}!`,
+        sender_name: 'Cryptowealth Investment Team',
+        company_name: 'Cryptowealth Investment'
       };
+
+      console.log('5. Template Parameters for EmailJS:', templateParams);
+
+      setEmailSendingStatus('Sending welcome email via EmailJS...');
+      console.log('6. Attempting to send email with new service configuration...');
+
+      // Add a small delay to ensure EmailJS is fully initialized
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       const response = await emailjs.send(
         EMAILJS_CONFIG.serviceId,
         EMAILJS_CONFIG.templateId,
-        templateParams
+        templateParams,
+        EMAILJS_CONFIG.publicKey
       );
 
-      console.log('Welcome email sent successfully:', response.status, response.text);
-      setEmailSendingStatus('Welcome email sent successfully! ✅');
-      return true;
-    } catch (error) {
-      console.error('Failed to send welcome email:', error);
-      setEmailSendingStatus('Failed to send welcome email. Please contact support if needed.');
-      return false;
-    }
-  };
-
-  // Alternative function using a backend API (if you prefer server-side email sending)
-  const sendWelcomeEmailViaAPI = async (userEmail, firstName, username, welcomeMessage) => {
-    try {
-      setEmailSendingStatus('Sending welcome email...');
+      console.log('7. ✅ Email sent successfully with new configuration!', response);
+      setEmailSendingStatus('✅ Welcome email sent successfully! Check your inbox.');
       
-      const response = await fetch('/api/send-welcome-email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: userEmail,
-          firstName: firstName,
-          username: username,
-          welcomeMessage: welcomeMessage
-        })
-      });
+      // Log success for debugging
+      console.log('Email delivery status:', response.status);
+      console.log('Email delivery text:', response.text);
+      
+      return true;
 
-      if (response.ok) {
-        console.log('Welcome email sent successfully via API');
-        setEmailSendingStatus('Welcome email sent successfully! ✅');
-        return true;
-      } else {
-        throw new Error('Failed to send email via API');
-      }
     } catch (error) {
-      console.error('Failed to send welcome email via API:', error);
-      setEmailSendingStatus('Failed to send welcome email. Please contact support if needed.');
+      console.log('8. ❌ Email sending failed with new configuration!');
+      console.error('Error object:', error);
+
+      let errorMessage = '❌ Email service temporarily unavailable: ';
+
+      // Handle specific EmailJS error codes with more detailed messages
+      if (error.status === 412) {
+        errorMessage = '❌ Email service account needs verification. Your signup was successful, but the welcome email could not be sent. Please contact support at cryptowealthinvestment07@gmail.com.';
+      } else if (error.status === 422) {
+        if (error.text && error.text.includes('recipients address is empty')) {
+          errorMessage = '❌ EmailJS Template Error: The recipient email field is not properly configured. Please check your EmailJS template "To Email" field is set to {{to_email}}';
+        } else if (error.text && error.text.includes('template')) {
+          errorMessage = '❌ Email template configuration issue detected. Your signup was successful, but the welcome email failed to send.';
+        } else {
+          errorMessage = '❌ Email template validation error. Your signup was successful, but the welcome email failed to send.';
+        }
+      } else if (error.status === 400) {
+        if (error.text && error.text.includes('service ID not found')) {
+          errorMessage = `❌ Service ID "${EMAILJS_CONFIG.serviceId}" not found in your EmailJS account. Please verify the Service ID in your EmailJS dashboard at https://dashboard.emailjs.com/admin`;
+        } else if (error.text && error.text.includes('template ID not found')) {
+          errorMessage = `❌ Template ID "${EMAILJS_CONFIG.templateId}" not found in your EmailJS account. Please verify the Template ID in your EmailJS dashboard.`;
+        } else if (error.text && error.text.includes('Public Key is invalid')) {
+          errorMessage = `❌ Public Key "${EMAILJS_CONFIG.publicKey}" is invalid. Please verify the Public Key in your EmailJS dashboard account section.`;
+        } else {
+          errorMessage = '❌ Email service configuration error (400). Please check your EmailJS Service ID, Template ID, and Public Key.';
+        }
+      } else if (error.status === 401) {
+        errorMessage = '❌ Email service authentication failed. Your signup was successful, but the welcome email could not be sent.';
+      } else if (error.status === 403) {
+        errorMessage = '❌ Email service access denied. Your signup was successful, but the welcome email could not be sent due to service restrictions.';
+      } else if (error.text && error.text.includes('suspended')) {
+        errorMessage = '❌ Email service is temporarily suspended. Your account was created successfully, but the welcome email could not be sent.';
+      } else if (error.text && error.text.includes('template')) {
+        errorMessage = '❌ Email template not found. Your signup was successful, but there was an issue with the email template configuration.';
+      } else if (error.text) {
+        errorMessage += error.text;
+      } else if (error.message) {
+        errorMessage += error.message;
+      } else {
+        errorMessage += 'Unknown error occurred. Your account was created successfully, but the welcome email could not be sent.';
+      }
+
+      setEmailSendingStatus(errorMessage);
+      
+      // Log detailed error information for debugging
+      console.log('Detailed error information:', {
+        status: error.status,
+        text: error.text,
+        message: error.message,
+        name: error.name
+      });
+      
+      // Don't throw the error - just log it and continue signup process
+      console.log('Continuing with signup process despite email failure...');
       return false;
     }
   };
@@ -278,62 +380,84 @@ function SignupPage() {
 
     setLoading(true);
     setError('');
-    setShowVerificationMessage(false);
+    setShowSuccessMessage(false);
     setWelcomeMessage('');
     setEmailSendingStatus('');
 
     try {
-      const userCredential = await createUserWithEmailAndPassword(authRef.current, formData.email, formData.password);
+      console.log('Creating user account...');
+
+      // Create Firebase user account
+      const userCredential = await createUserWithEmailAndPassword(
+        authRef.current,
+        formData.email,
+        formData.password
+      );
       const user = userCredential.user;
 
+      // Update user profile with display name
       const displayName = `${formData.firstName.trim()} ${formData.lastName.trim()}`;
       await updateProfile(user, { displayName });
 
-      await sendEmailVerification(user);
-      console.log('Email verification sent to:', user.email);
+      console.log('User created successfully:', user.uid);
 
+      // Create user profile in Firestore
       const profileResult = await createUserProfileInFirestore(user, appId);
 
+      // Store user data in session storage
       sessionStorage.setItem('user', JSON.stringify({
-        uid: user.uid, email: user.email,
-        firstName: formData.firstName.trim(), lastName: formData.lastName.trim(),
-        username: formData.username.trim(), displayName,
-        emailVerified: user.emailVerified, photoURL: user.photoURL || null,
-        role: profileResult.role, ...profileResult
+        uid: user.uid,
+        email: user.email,
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        username: formData.username.trim(),
+        displayName,
+        emailVerified: user.emailVerified,
+        photoURL: user.photoURL || null,
+        role: profileResult.role,
+        ...profileResult
       }));
 
-      // Generate welcome message
-      const generatedMsg = await generateWelcomeMessage(formData.firstName.trim(), formData.username.trim());
+      // Generate personalized welcome message
+      const generatedMsg = await generateWelcomeMessage(
+        formData.firstName.trim(),
+        formData.username.trim()
+      );
       setWelcomeMessage(generatedMsg);
 
-      // Send actual welcome email (choose one method)
-      await sendWelcomeEmail(
-        formData.email,
+      // Try to send welcome email with new configuration (non-blocking)
+      console.log('Attempting to send welcome email with new EmailJS configuration...');
+      const emailSent = await sendWelcomeEmail(
+        formData.email.trim(),
         formData.firstName.trim(),
-        formData.username.trim(),
-        generatedMsg
+        formData.lastName.trim(),
+        formData.username.trim()
       );
 
-      // Alternative: Use backend API instead
-      // await sendWelcomeEmailViaAPI(
-      //   formData.email,
-      //   formData.firstName.trim(),
-      //   formData.username.trim(),
-      //   generatedMsg
-      // );
+      if (emailSent) {
+        console.log('✅ Welcome email was sent successfully');
+      } else {
+        console.log('⚠️ Welcome email failed to send, but signup completed');
+      }
 
+      // Clear form data
       setFormData({
         firstName: '', lastName: '', username: '', email: '', password: '', confirmPassword: ''
       });
 
-      setShowVerificationMessage(true);
-      
-      // Navigate to email verification pending page after showing welcome message
+      // Show success message regardless of email status
+      setShowSuccessMessage(true);
+
+      // Redirect to login page after 6 seconds (increased time to show email status)
       setTimeout(() => {
-        navigate('/email-verification-pending');
-      }, 4000); // Increased to 4 seconds to show email status
+        console.log('Redirecting to login page...');
+        navigate('/login');
+      }, 6000);
+
     } catch (err) {
       console.error('Signup error:', err);
+
+      // Handle specific Firebase Auth errors
       const errorMap = {
         'auth/email-already-in-use': 'An account with this email already exists.',
         'auth/invalid-email': 'Invalid email address.',
@@ -350,7 +474,7 @@ function SignupPage() {
           setShowLoginPromptModal(true);
         }
       } else {
-        setError(err.message || 'Signup failed.');
+        setError(err.message || 'Signup failed. Please try again.');
       }
     } finally {
       setLoading(false);
@@ -364,47 +488,112 @@ function SignupPage() {
 
   const handleModalCancel = () => {
     setShowLoginPromptModal(false);
+    setModalMessage('');
   };
 
-  if (loading) {
-    return <div className="auth-page"><p>Initializing...</p></div>;
+  if (loading && !isFirebaseReady) {
+    return (
+      <div className="auth-page">
+        <p className="loading-message">Initializing application...</p>
+      </div>
+    );
   }
 
   return (
     <main className="auth-page">
       <div className="auth-container">
-        <h2>Create Your Account</h2>
-        <p>Join us and start your journey</p>
+        <h2>Create Your Cryptowealth Account</h2>
+        <p>Join us and start your investment journey</p>
 
         {error && <div className="auth-error">{error}</div>}
-        {showVerificationMessage && (
+
+        {showSuccessMessage && (
           <div className="auth-success">
-            <p>✅ A verification email was sent. Please check your inbox.</p>
+            <h3>🎉 Account Created Successfully!</h3>
             {welcomeMessage && (
-              <p className="mt-2 text-blue-700 font-semibold">{welcomeMessage}</p>
+              <p className="mt-2 text-blue-700 font-semibold text-lg">{welcomeMessage}</p>
             )}
             {emailSendingStatus && (
-              <p className="mt-2 text-green-600 text-sm">{emailSendingStatus}</p>
+              <p className="mt-2 text-sm" style={{
+                color: emailSendingStatus.includes('✅') ? '#10b981' : 
+                       emailSendingStatus.includes('❌') ? '#ef4444' : '#f59e0b'
+              }}>
+                {emailSendingStatus}
+              </p>
             )}
+            <p className="mt-3 text-gray-600">
+              {emailSendingStatus.includes('✅') ? 
+                'Please check your email for welcome instructions. Redirecting to login page...' :
+                'Redirecting to login page in a few seconds...'
+              }
+            </p>
           </div>
         )}
 
-        {!showVerificationMessage && (
+        {!showSuccessMessage && (
           <form onSubmit={handleSubmit} className="auth-form" noValidate>
             <div className="form-row">
-              <input name="firstName" placeholder="First Name" value={formData.firstName}
-                onChange={handleChange} required disabled={loading} />
-              <input name="lastName" placeholder="Last Name" value={formData.lastName}
-                onChange={handleChange} required disabled={loading} />
+              <input
+                name="firstName"
+                placeholder="First Name"
+                value={formData.firstName}
+                onChange={handleChange}
+                required
+                disabled={loading}
+                autoComplete="given-name"
+              />
+              <input
+                name="lastName"
+                placeholder="Last Name"
+                value={formData.lastName}
+                onChange={handleChange}
+                required
+                disabled={loading}
+                autoComplete="family-name"
+              />
             </div>
-            <input name="username" placeholder="Username" value={formData.username}
-              onChange={handleChange} required disabled={loading} minLength={3} />
-            <input name="email" type="email" placeholder="Email" value={formData.email}
-              onChange={handleChange} required disabled={loading} />
-            <input name="password" type="password" placeholder="Password" value={formData.password}
-              onChange={handleChange} required disabled={loading} minLength={6} />
-            <input name="confirmPassword" type="password" placeholder="Confirm Password"
-              value={formData.confirmPassword} onChange={handleChange} required disabled={loading} />
+            <input
+              name="username"
+              placeholder="Username"
+              value={formData.username}
+              onChange={handleChange}
+              required
+              disabled={loading}
+              minLength={3}
+              autoComplete="username"
+            />
+            <input
+              name="email"
+              type="email"
+              placeholder="Email"
+              value={formData.email}
+              onChange={handleChange}
+              required
+              disabled={loading}
+              autoComplete="email"
+            />
+            <input
+              name="password"
+              type="password"
+              placeholder="Password"
+              value={formData.password}
+              onChange={handleChange}
+              required
+              disabled={loading}
+              minLength={6}
+              autoComplete="new-password"
+            />
+            <input
+              name="confirmPassword"
+              type="password"
+              placeholder="Confirm Password"
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              required
+              disabled={loading}
+              autoComplete="new-password"
+            />
+
             <button type="submit" disabled={loading}>
               {loading ? 'Creating Account...' : 'Sign Up'}
             </button>
@@ -420,7 +609,7 @@ function SignupPage() {
         message={modalMessage}
         onConfirm={handleModalConfirm}
         onCancel={handleModalCancel}
-        showConfirmButton={true}
+        showConfirmButton={!!modalMessage}
       />
     </main>
   );
