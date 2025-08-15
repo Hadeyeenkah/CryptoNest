@@ -10,11 +10,14 @@ const mongoose = require('mongoose');
 const admin = require('firebase-admin');
 const cron = require('node-cron'); // Added for scheduling daily interest
 
+// --- Password Reset Dependencies ---
+const crypto = require('crypto');
+const bcrypt = require('bcrypt'); // Make sure to install: npm install bcrypt
+
 // --- Import Routes ---
 // Ensure these paths are correct relative to your server.js file
 const depositRoutes = require('./routes/deposit');
 const userRoutes = require('./routes/user'); // Assuming this handles user-specific data, not auth
-
 
 // --- CORS Configuration ---
 const corsOptions = {
@@ -34,7 +37,6 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-
 // --- Models ---
 // Import Mongoose models for database interaction
 const MasterPlan = require('./models/MasterPlan');
@@ -43,8 +45,20 @@ const UserInvestment = require('./models/UserInvestment');
 const Deposit = require('./models/Deposit');
 const Transaction = require('./models/Transaction');
 
-// --- Custom Middleware ---
-// const authenticateToken = require('./middleware/auth'); // Uncomment if you use this middleware directly in server.js
+// --- Password Reset Token Management ---
+// Create a simple in-memory store for reset tokens (use Redis in production)
+const resetTokens = new Map();
+
+// Clean up expired tokens periodically
+setInterval(() => {
+    const now = new Date();
+    for (const [token, data] of resetTokens.entries()) {
+        if (now > data.expiresAt) {
+            resetTokens.delete(token);
+            console.log(`🧹 Cleaned up expired reset token for ${data.email}`);
+        }
+    }
+}, 300000); // Clean up every 5 minutes
 
 // --- Global Firebase Admin status flag ---
 let firebaseAdminInitialized = false;
@@ -394,7 +408,6 @@ cron.schedule('0 0 * * *', () => {
 });
 console.log('⏰ Daily interest calculation scheduled for 00:00 UTC.');
 
-
 // --- API ROUTES ---
 // IMPORTANT: All API routes MUST be defined BEFORE any static file serving middleware
 // that might catch API paths, and before the catch-all route for the SPA.
@@ -431,6 +444,10 @@ app.get('/api', (req, res) => {
             'POST /api/auth/login',
             'GET /api/auth/profile',
             'PUT /api/auth/profile (protected)',
+            'POST /api/auth/check-email',
+            'POST /api/auth/store-reset-token',
+            'POST /api/auth/send-reset-email',
+            'POST /api/auth/reset-password',
             'GET /api/placeholder/:width/:height',
             'GET /api/placeholder-svg/:width/:height',
             'GET /api/user/deposit (example)',
@@ -784,7 +801,6 @@ app.get('/api/auth/profile', async (req, res) => {
     }
 });
 
-
 // --- Admin-specific API to update user profile (including role) ---
 // This endpoint should be protected by an authentication middleware that verifies admin status.
 // For simplicity, I'm adding it here, but in a real app, ensure proper auth.
@@ -848,6 +864,228 @@ app.put('/api/admin/users/:userId', async (req, res) => {
     }
 });
 
+// --- PASSWORD RESET ROUTES ---
+
+// Check if email exists in database
+app.post('/api/auth/check-email', async (req, res) => {
+    try {
+        const { email } = req.body;
+        
+        if (!email || !email.trim()) {
+            return res.status(400).json({ error: 'Email is required' });
+        }
+
+        const user = await User.findOne({ email: email.toLowerCase().trim() });
+        
+        if (!user) {
+            console.log(`Email check failed: ${email} not found in system`);
+            return res.status(404).json({ error: 'Email not found in our system' });
+        }
+        
+        console.log(`Email check successful: ${email} found in system`);
+        res.json({ exists: true, message: 'Email found' });
+    } catch (error) {
+        console.error('Email check error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Store reset token
+app.post('/api/auth/store-reset-token', async (req, res) => {
+    try {
+        const { email, token, expiresAt } = req.body;
+        
+        if (!email || !token || !expiresAt) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+        
+        // Store in memory (use database/Redis in production)
+        resetTokens.set(token, {
+            email: email.toLowerCase().trim(),
+            expiresAt: new Date(expiresAt),
+            createdAt: new Date()
+        });
+        
+        console.log(`Reset token stored for ${email}, expires at ${expiresAt}`);
+        
+        // Clean up expired tokens for this email
+        for (const [existingToken, data] of resetTokens.entries()) {
+            if (data.email === email.toLowerCase().trim() && existingToken !== token) {
+                resetTokens.delete(existingToken);
+                console.log(`Cleaned up old reset token for ${email}`);
+            }
+        }
+        
+        // Auto cleanup after expiration
+        setTimeout(() => {
+            if (resetTokens.has(token)) {
+                resetTokens.delete(token);
+                console.log(`Auto-cleaned expired reset token for ${email}`);
+            }
+        }, new Date(expiresAt).getTime() - Date.now());
+        
+        res.json({ success: true, message: 'Reset token stored successfully' });
+    } catch (error) {
+        console.error('Store token error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Send reset email using EmailJS (server-side - optional, but more secure)
+app.post('/api/auth/send-reset-email', async (req, res) => {
+    try {
+        const { email, resetUrl } = req.body;
+        
+        if (!email || !resetUrl) {
+            return res.status(400).json({ error: 'Email and reset URL are required' });
+        }
+
+        // This is optional - EmailJS can be called directly from frontend
+        // But server-side is more secure as it hides your private keys
+        
+        // Import EmailJS (install: npm install @emailjs/nodejs)
+        const emailjs = require('@emailjs/nodejs');
+        
+        const templateParams = {
+            to_email: email,
+            user_email: email,
+            reset_link: resetUrl,
+            app_name: 'CryptoNest Investment',
+            to_name: email.split('@')[0],
+            from_name: 'CryptoNest Investment Team',
+            support_email: 'support@cryptonest.com'
+        };
+        
+        await emailjs.send(
+            process.env.EMAILJS_SERVICE_ID,
+            process.env.EMAILJS_TEMPLATE_ID,
+            templateParams,
+            {
+                publicKey: process.env.EMAILJS_PUBLIC_KEY,
+                privateKey: process.env.EMAILJS_PRIVATE_KEY,
+            }
+        );
+        
+        console.log(`Password reset email sent to ${email}`);
+        res.json({ success: true, message: 'Reset email sent successfully' });
+    } catch (error) {
+        console.error('Send email error:', error);
+        res.status(500).json({ error: 'Failed to send email' });
+    }
+});
+
+// Reset password
+app.post('/api/auth/reset-password', async (req, res) => {
+    try {
+        const { email, token, newPassword } = req.body;
+        
+        if (!email || !token || !newPassword) {
+            return res.status(400).json({ error: 'Email, token, and new password are required' });
+        }
+
+        const normalizedEmail = email.toLowerCase().trim();
+        
+        // Verify token exists and is valid
+        const tokenData = resetTokens.get(token);
+        if (!tokenData) {
+            console.log(`Reset attempt with invalid token: ${token}`);
+            return res.status(400).json({ error: 'Invalid or expired reset token' });
+        }
+        
+        if (tokenData.email !== normalizedEmail) {
+            console.log(`Token email mismatch: ${tokenData.email} vs ${normalizedEmail}`);
+            return res.status(400).json({ error: 'Token does not match email' });
+        }
+        
+        if (new Date() > tokenData.expiresAt) {
+            resetTokens.delete(token);
+            console.log(`Reset attempt with expired token for ${normalizedEmail}`);
+            return res.status(400).json({ error: 'Reset token has expired' });
+        }
+        
+        // Validate password strength
+        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
+        if (!passwordRegex.test(newPassword)) {
+            return res.status(400).json({ 
+                error: 'Password must be at least 8 characters long and contain uppercase, lowercase, number, and special character' 
+            });
+        }
+        
+        // Find user and update password
+        const user = await User.findOne({ email: normalizedEmail });
+        if (!user) {
+            console.log(`Reset attempt for non-existent user: ${normalizedEmail}`);
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
+        // Hash the new password
+        const saltRounds = 12; // Increased salt rounds for better security
+        const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+        
+        // Update user password
+        user.password = hashedPassword;
+        user.lastLogin = new Date(); // Update last login since password was changed
+        await user.save();
+        
+        // Remove used token
+        resetTokens.delete(token);
+        
+        // Record password reset transaction for audit trail
+        await Transaction.create({
+            userId: user._id,
+            type: 'security',
+            amount: 0,
+            details: 'Password reset completed successfully',
+        });
+        
+        console.log(`Password reset successful for user: ${normalizedEmail}`);
+        
+        res.json({ 
+            success: true, 
+            message: 'Password reset successful',
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Reset password error:', error);
+        
+        // Don't expose internal errors to client
+        if (error.name === 'ValidationError') {
+            return res.status(400).json({
+                error: 'Invalid data provided',
+                details: error.message
+            });
+        }
+        
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Optional: Get reset token status (for debugging)
+app.get('/api/auth/reset-token-status/:token', async (req, res) => {
+    try {
+        const { token } = req.params;
+        
+        const tokenData = resetTokens.get(token);
+        if (!tokenData) {
+            return res.status(404).json({ error: 'Token not found' });
+        }
+        
+        const isExpired = new Date() > tokenData.expiresAt;
+        const timeRemaining = tokenData.expiresAt.getTime() - Date.now();
+        
+        res.json({
+            exists: true,
+            expired: isExpired,
+            email: tokenData.email,
+            expiresAt: tokenData.expiresAt,
+            timeRemaining: isExpired ? 0 : Math.max(0, timeRemaining),
+            createdAt: tokenData.createdAt
+        });
+    } catch (error) {
+        console.error('Token status error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
 
 // -----------------------------------------------------------------------------------------------------------------------------------
 // IMPORTANT: SERVE REACT APP STATIC FILES AND CATCH-ALL ROUTE BELOW ALL YOUR API ROUTES
@@ -862,7 +1100,6 @@ app.put('/api/admin/users/:userId', async (req, res) => {
 //     └── dist/ (React build output)
 const frontendBuildPath = path.join(__dirname, 'client', 'dist');
 
-
 // Log the path to verify during deployment (check Render logs)
 console.log(`Serving static files from: ${frontendBuildPath}`);
 
@@ -874,7 +1111,6 @@ if (!fs.existsSync(frontendBuildPath) || !fs.existsSync(path.join(frontendBuildP
 } else {
     console.log(`✅ Frontend build directory and index.html found at: ${frontendBuildPath}`);
 }
-
 
 // Serve static files from the React build directory
 // This middleware will try to match incoming requests to files in the 'dist' folder.
@@ -906,7 +1142,6 @@ app.get('*', (req, res) => {
         }
     });
 });
-
 
 // --- Start the server ---
 const PORT = process.env.PORT || 10000; // Use port from environment variable (e.g., Render provides one) or default to 10000
