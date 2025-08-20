@@ -30,7 +30,7 @@ function Navbar() {
     <nav className="navbar">
       <div className="navbar-container">
         <Link to="/" className="navbar-logo" onClick={closeMenu}>
-          Crypto<span className="highlight">.Wealth</span>
+          Capital<span className="highlight">.Asset</span>
         </Link>
 
         <div className={`menu-icon ${menuOpen ? 'active' : ''}`} onClick={toggleMenu}>
