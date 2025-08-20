@@ -581,7 +581,7 @@ const DepositPage = () => {
             className="submit-btn"
             disabled={loading || !formData.amount || !!validateAmount(formData.amount)}
           >
-            {loading ? '⏳ Processing...' : '✅ Confirm Deposit'}
+            {loading ? '⏳ Processing...' : 'Confirm Deposit'}
           </button>
 
           <button
