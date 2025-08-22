@@ -126,7 +126,7 @@ body {
 
 .floating-shape {
   position: absolute;
-  border-radius: 50%;
+  border-radius: 12%;
   opacity: 0.08;
   animation: float 25s infinite ease-in-out;
 }
@@ -166,9 +166,10 @@ body {
 }
 
 /* Theme Toggle Button */
+/* Theme Toggle Button */
 .theme-toggle-btn {
   position: fixed;
-  top: 20px; /* Moved higher */
+  top: 90px; /* Moved down from 20px */
   right: 20px;
   z-index: 1000;
   background: var(--card-background);
@@ -231,19 +232,19 @@ body {
 }
 
 .welcome-title {
-  font-size: 1.6rem; /* Reduced from 2rem */
-  font-weight: 700;
+  font-size: 100px; /* A significant reduction */
+  font-weight: 100;
   color: var(--text-primary);
-  margin-bottom: 2px; /* Reduced from 4px */
-  line-height: 1.1;
+  margin-bottom: 1px;
+  line-height: 2.1;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 1px;
 }
 
 .welcome-title::before {
   content: '💼';
-  font-size: 1.2rem;
+  font-size: 1.0rem; /* Reduced to match the main text */
 }
 
 .username {
@@ -253,7 +254,7 @@ body {
   background-clip: text;
   position: static;
   font-size: inherit;
-  font-weight: 700;
+  font-weight: 10;
   white-space: nowrap;
   z-index: auto;
   top: auto;
@@ -262,7 +263,7 @@ body {
 
 .welcome-subtitle {
   color: var(--text-secondary);
-  font-size: 0.85rem; /* Reduced from 0.95rem */
+  font-size: 0.95rem; /* Reduced from 0.95rem */
   font-weight: 500;
   margin-bottom: 0;
 }
