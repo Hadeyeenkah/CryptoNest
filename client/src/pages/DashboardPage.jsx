@@ -1127,7 +1127,7 @@ const DashboardPage = () => {
             <div className="header-content">
               <div className="welcome-text">
                 <h1 className="welcome-title">
-                  Welcome, <span className="username">{firstName}</span>
+                  Welcome <span className="username">{firstName}</span>
                 </h1>
                 <p className="welcome-subtitle">Your financial journey continues here</p>
               </div>
