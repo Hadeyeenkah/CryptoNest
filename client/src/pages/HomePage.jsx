@@ -92,7 +92,7 @@ const HomePage = () => {
         <div className="container hero-container">
           <div className="hero-content">
             <h1 className="hero-content-h1">
-              CryptoWealth
+              Apex.CryptoWealth
             </h1>
             <p className="hero-description">
               Join thousands of satisfied 
